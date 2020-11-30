@@ -37,7 +37,7 @@ names(var.labels) <- names(pdad_2018_moradores)
 pdad_2018_moradores <- Hmisc::upData(pdad_2018_moradores, labels = var.labels)
 
 # Verificar o resultado
-Hmisc::describe(pdad_2018_moradores)
+#Hmisc::describe(pdad_2018_moradores)
 
 
 ###### Importando o dicionário de dados domicilios
@@ -57,7 +57,7 @@ names(var.labelsDom) <- names(pdad_2018_domicilios)
 pdad_2018_domicilios <- Hmisc::upData(pdad_2018_domicilios, labels = var.labelsDom)
 
 # Verificar o resultado
-Hmisc::describe(pdad_2018_domicilios)
+#Hmisc::describe(pdad_2018_domicilios)
 
 
 ###### Unificar arquivos de dados a partir do identificador único da fixa
@@ -182,186 +182,209 @@ vars_relatorio <- amostra %>%
 ##### 1.1 Apresente um perfil da RA X, Plano Piloto e do Distrito Federal, estimando as seguintes variáveis
 
 ###### i)	População total Plano Piloto e Samambaia
-amostra %>%
-  # Filtrar Plano Piloto e Samambaia
-  srvyr::filter(A01ra==1 | A01ra==12) %>%
-  # Ajustar nome das variáveis
-  srvyr::mutate(A01ra=factor(case_when(A01ra==1~"Plano Piloto",
-                                      A01ra==12~"Samambaia",
-                                      TRUE~"Outras"))) %>%
-  # Agrupar por cidade
-  srvyr::group_by(A01ra) %>%
-  # Calcular o total e o Percentual da população, com seu intervalo de confiança
-  srvyr::summarise("População Total"=survey_total(vartype = "ci"),
-                   # Calcular o percentual da população
-                   pct=survey_mean(vartype = "ci"))
+      amostra %>%
+        # Filtrar Plano Piloto e Samambaia
+        srvyr::filter(A01ra==1 | A01ra==12) %>%
+        # Ajustar nome das variáveis
+        srvyr::mutate(A01ra=factor(case_when(A01ra==1~"Plano Piloto",
+                                            A01ra==12~"Samambaia",
+                                            TRUE~"Outras"))) %>%
+        # Agrupar por cidade
+        srvyr::group_by(A01ra) %>%
+        # Calcular o total e o Percentual da população, com seu intervalo de confiança
+        srvyr::summarise("População Total"=survey_total(vartype = "ci"),
+                         # Calcular o percentual da população
+                         pct=survey_mean(vartype = "ci"))
 
 ###### i)	População total DF
-amostra %>%
-  # Filtrar População Total
-  srvyr::filter(A01ra >= 1 ) %>%
-  # Criar contador
-  srvyr::mutate(count=1) %>%
-  # Calcular o total
-  srvyr::summarise("População Total"=survey_total(count, vartype = "ci"))
+      amostra %>%
+        # Filtrar População Total
+        srvyr::filter(A01ra >= 1 ) %>%
+        # Criar contador
+        srvyr::mutate(count=1) %>%
+        # Calcular o total
+        srvyr::summarise("População Total"=survey_total(count, vartype = "ci"))
 
 
 ##### ii)	Distribuição etária da população (faça uma pirâmide etária, 
 #####     separando homens e mulheres, com classes variando de 5 em 5 anos de 0-4; 5-9; 10-14...)
 
 ### Distribuição etária DF
-piramide <-
-  vars_relatorio %>%
-  # Agrupar por faixas de idade e sexo
-  srvyr::group_by(idade_faixas,sexo) %>%
-  # Calcular os totais
-  srvyr::summarise(n=survey_total(na.rm = T, vartype = "ci"))
-
-# Fazer o gráfico com a pirâmide
-piramide_grafico <- piramide %>%
-  # Construir um plot com as idades no eixo x, as quantidades no eixo y,
-  #  preenchimento com a variável sexo, e os intervalos de confiança
-  # inferiores e superiores
-  ggplot(aes(x=idade_faixas,y=n, fill=sexo, ymin=n_low,ymax=n_upp))+
-  # Fazer o gráfico de barras para o sexo Feminino
-  geom_bar(data = dplyr::filter(piramide, sexo == "Feminino"),
-           stat = "identity") +
-  # Fazer o gráfico de barras para o sexo Masculino
-  geom_bar(data = dplyr::filter(piramide, sexo == "Masculino"),
-           stat = "identity",
-           position = "identity",
-           # Negativar os valores para espelhar no eixo
-           mapping = aes(y = -n))+
-  # Plotar os erros para o sexo Masculino, negativando os valores para espelhar o eixo
-  geom_errorbar(data = dplyr::filter(piramide, sexo == "Masculino"),
-                mapping = aes(ymin = -n_low,ymax=-n_upp),
-                width=0,
-                color="black")+
-  # Plotar os erros para o sexo Feminino
-  geom_errorbar(data = dplyr::filter(piramide, sexo == "Feminino"),
-                width=0,
-                color="black")+
-  # Inverter os eixos, fazendo com que o gráfico de colunas verticais fique
-  # horizontal
-  coord_flip() + 
-  # Ajustar as configurações de escala
-  scale_y_continuous(labels = function(x) format(abs(x), 
-                                                 big.mark = ".",
-                                                 scientific = FALSE,
-                                                 decimal.mark=",")) +
-  # Suprimir os nomes dos eixos
-  labs(x="",y="") +
-  # Nome do gráfico
-  scale_fill_discrete(name = "Distribuição etária DF")
-# Plotar gráfico
-piramide_grafico
+      piramide <-
+        vars_relatorio %>%
+        # Agrupar por faixas de idade e sexo
+        srvyr::group_by(idade_faixas,sexo) %>%
+        # Calcular os totais
+        srvyr::summarise(n=survey_total(na.rm = T, vartype = "ci"))
+      
+      # Fazer o gráfico com a pirâmide
+      piramide_grafico <- piramide %>%
+        # Construir um plot com as idades no eixo x, as quantidades no eixo y,
+        #  preenchimento com a variável sexo, e os intervalos de confiança
+        # inferiores e superiores
+        ggplot(aes(x=idade_faixas,y=n, fill=sexo, ymin=n_low,ymax=n_upp))+
+        # Fazer o gráfico de barras para o sexo Feminino
+        geom_bar(data = dplyr::filter(piramide, sexo == "Feminino"),
+                 stat = "identity") +
+        # Fazer o gráfico de barras para o sexo Masculino
+        geom_bar(data = dplyr::filter(piramide, sexo == "Masculino"),
+                 stat = "identity",
+                 position = "identity",
+                 # Negativar os valores para espelhar no eixo
+                 mapping = aes(y = -n))+
+        # Plotar os erros para o sexo Masculino, negativando os valores para espelhar o eixo
+        geom_errorbar(data = dplyr::filter(piramide, sexo == "Masculino"),
+                      mapping = aes(ymin = -n_low,ymax=-n_upp),
+                      width=0,
+                      color="black")+
+        # Plotar os erros para o sexo Feminino
+        geom_errorbar(data = dplyr::filter(piramide, sexo == "Feminino"),
+                      width=0,
+                      color="black")+
+        # Inverter os eixos, fazendo com que o gráfico de colunas verticais fique
+        # horizontal
+        coord_flip() + 
+        # Ajustar as configurações de escala
+        scale_y_continuous(labels = function(x) format(abs(x), 
+                                                       big.mark = ".",
+                                                       scientific = FALSE,
+                                                       decimal.mark=",")) +
+        # Suprimir os nomes dos eixos
+        labs(x="",y="") +
+        # Nome do gráfico
+        scale_fill_discrete(name = "Distribuição etária DF")
+        # Plotar gráfico
+        piramide_grafico
 
 
 ### Distribuição etária Plano Piloto
-piramide <-
-  vars_relatorio %>%
-  srvyr::filter(RA == "Plano Piloto" ) %>%
-  # Agrupar por faixas de idade e sexo
-  srvyr::group_by(idade_faixas,sexo) %>%
-  # Calcular os totais
-  srvyr::summarise(n=survey_total(na.rm = T, vartype = "ci"))
-
-
-# Fazer o gráfico com a pirâmide
-piramide_grafico <- piramide %>%
-  # Construir um plot com as idades no eixo x, as quantidades no eixo y,
-  #  preenchimento com a variável sexo, e os intervalos de confiança
-  # inferiores e superiores
-  ggplot(aes(x=idade_faixas,y=n, fill=sexo, ymin=n_low,ymax=n_upp))+
-  # Fazer o gráfico de barras para o sexo Feminino
-  geom_bar(data = dplyr::filter(piramide, sexo == "Feminino"),
-           stat = "identity") +
-  # Fazer o gráfico de barras para o sexo Masculino
-  geom_bar(data = dplyr::filter(piramide, sexo == "Masculino"),
-           stat = "identity",
-           position = "identity",
-           # Negativar os valores para espelhar no eixo
-           mapping = aes(y = -n))+
-  # Plotar os erros para o sexo Masculino, negativando os valores para espelhar o eixo
-  geom_errorbar(data = dplyr::filter(piramide, sexo == "Masculino"),
-                mapping = aes(ymin = -n_low,ymax=-n_upp),
-                width=0,
-                color="black")+
-  # Plotar os erros para o sexo Feminino
-  geom_errorbar(data = dplyr::filter(piramide, sexo == "Feminino"),
-                width=0,
-                color="black")+
-  # Inverter os eixos, fazendo com que o gráfico de colunas verticais fique
-  # horizontal
-  coord_flip() + 
-  # Ajustar as configurações de escala
-  scale_y_continuous(labels = function(x) format(abs(x), 
-                                                 big.mark = ".",
-                                                 scientific = FALSE,
-                                                 decimal.mark=",")) +
-  # Suprimir os nomes dos eixos
-  labs(x="",y="") +
-  # Nome do gráfico
-  scale_fill_discrete(name = "Distribuição etária Plano Piloto")
-# Plotar gráfico
-piramide_grafico
+      piramide <-
+        vars_relatorio %>%
+        srvyr::filter(RA == "Plano Piloto" ) %>%
+        # Agrupar por faixas de idade e sexo
+        srvyr::group_by(idade_faixas,sexo) %>%
+        # Calcular os totais
+        srvyr::summarise(n=survey_total(na.rm = T, vartype = "ci"))
+      
+      
+      # Fazer o gráfico com a pirâmide
+      piramide_grafico <- piramide %>%
+        # Construir um plot com as idades no eixo x, as quantidades no eixo y,
+        #  preenchimento com a variável sexo, e os intervalos de confiança
+        # inferiores e superiores
+        ggplot(aes(x=idade_faixas,y=n, fill=sexo, ymin=n_low,ymax=n_upp))+
+        # Fazer o gráfico de barras para o sexo Feminino
+        geom_bar(data = dplyr::filter(piramide, sexo == "Feminino"),
+                 stat = "identity") +
+        # Fazer o gráfico de barras para o sexo Masculino
+        geom_bar(data = dplyr::filter(piramide, sexo == "Masculino"),
+                 stat = "identity",
+                 position = "identity",
+                 # Negativar os valores para espelhar no eixo
+                 mapping = aes(y = -n))+
+        # Plotar os erros para o sexo Masculino, negativando os valores para espelhar o eixo
+        geom_errorbar(data = dplyr::filter(piramide, sexo == "Masculino"),
+                      mapping = aes(ymin = -n_low,ymax=-n_upp),
+                      width=0,
+                      color="black")+
+        # Plotar os erros para o sexo Feminino
+        geom_errorbar(data = dplyr::filter(piramide, sexo == "Feminino"),
+                      width=0,
+                      color="black")+
+        # Inverter os eixos, fazendo com que o gráfico de colunas verticais fique
+        # horizontal
+        coord_flip() + 
+        # Ajustar as configurações de escala
+        scale_y_continuous(labels = function(x) format(abs(x), 
+                                                       big.mark = ".",
+                                                       scientific = FALSE,
+                                                       decimal.mark=",")) +
+        # Suprimir os nomes dos eixos
+        labs(x="",y="") +
+        # Nome do gráfico
+        scale_fill_discrete(name = "Distribuição etária Plano Piloto")
+        # Plotar gráfico
+        piramide_grafico
 
 
 ### Distribuição etária Samambaia
-piramide <-
-  vars_relatorio %>%
-  srvyr::filter(RA == "Samambaia" ) %>%
-  # Agrupar por faixas de idade e sexo
-  srvyr::group_by(idade_faixas,sexo) %>%
-  # Calcular os totais
-  srvyr::summarise(n=survey_total(na.rm = T, vartype = "ci"))
-
-
-# Fazer o gráfico com a pirâmide
-piramide_grafico <- piramide %>%
-  # Construir um plot com as idades no eixo x, as quantidades no eixo y,
-  #  preenchimento com a variável sexo, e os intervalos de confiança
-  # inferiores e superiores
-  ggplot(aes(x=idade_faixas,y=n, fill=sexo, ymin=n_low,ymax=n_upp))+
-  # Fazer o gráfico de barras para o sexo Feminino
-  geom_bar(data = dplyr::filter(piramide, sexo == "Feminino"),
-           stat = "identity") +
-  # Fazer o gráfico de barras para o sexo Masculino
-  geom_bar(data = dplyr::filter(piramide, sexo == "Masculino"),
-           stat = "identity",
-           position = "identity",
-           # Negativar os valores para espelhar no eixo
-           mapping = aes(y = -n))+
-  # Plotar os erros para o sexo Masculino, negativando os valores para espelhar o eixo
-  geom_errorbar(data = dplyr::filter(piramide, sexo == "Masculino"),
-                mapping = aes(ymin = -n_low,ymax=-n_upp),
-                width=0,
-                color="black")+
-  # Plotar os erros para o sexo Feminino
-  geom_errorbar(data = dplyr::filter(piramide, sexo == "Feminino"),
-                width=0,
-                color="black")+
-  # Inverter os eixos, fazendo com que o gráfico de colunas verticais fique
-  # horizontal
-  coord_flip() + 
-  # Ajustar as configurações de escala
-  scale_y_continuous(labels = function(x) format(abs(x), 
-                                                 big.mark = ".",
-                                                 scientific = FALSE,
-                                                 decimal.mark=",")) +
-  # Suprimir os nomes dos eixos
-  labs(x="",y="") +
-  # Nome do gráfico
-  scale_fill_discrete(name = "Distribuição etária Samambaia")
-# Plotar gráfico
-piramide_grafico
-
-
+      piramide <-
+        vars_relatorio %>%
+        srvyr::filter(RA == "Samambaia" ) %>%
+        # Agrupar por faixas de idade e sexo
+        srvyr::group_by(idade_faixas,sexo) %>%
+        # Calcular os totais
+        srvyr::summarise(n=survey_total(na.rm = T, vartype = "ci"))
+      
+      
+      # Fazer o gráfico com a pirâmide
+      piramide_grafico <- piramide %>%
+        # Construir um plot com as idades no eixo x, as quantidades no eixo y,
+        #  preenchimento com a variável sexo, e os intervalos de confiança
+        # inferiores e superiores
+        ggplot(aes(x=idade_faixas,y=n, fill=sexo, ymin=n_low,ymax=n_upp))+
+        # Fazer o gráfico de barras para o sexo Feminino
+        geom_bar(data = dplyr::filter(piramide, sexo == "Feminino"),
+                 stat = "identity") +
+        # Fazer o gráfico de barras para o sexo Masculino
+        geom_bar(data = dplyr::filter(piramide, sexo == "Masculino"),
+                 stat = "identity",
+                 position = "identity",
+                 # Negativar os valores para espelhar no eixo
+                 mapping = aes(y = -n))+
+        # Plotar os erros para o sexo Masculino, negativando os valores para espelhar o eixo
+        geom_errorbar(data = dplyr::filter(piramide, sexo == "Masculino"),
+                      mapping = aes(ymin = -n_low,ymax=-n_upp),
+                      width=0,
+                      color="black")+
+        # Plotar os erros para o sexo Feminino
+        geom_errorbar(data = dplyr::filter(piramide, sexo == "Feminino"),
+                      width=0,
+                      color="black")+
+        # Inverter os eixos, fazendo com que o gráfico de colunas verticais fique
+        # horizontal
+        coord_flip() + 
+        # Ajustar as configurações de escala
+        scale_y_continuous(labels = function(x) format(abs(x), 
+                                                       big.mark = ".",
+                                                       scientific = FALSE,
+                                                       decimal.mark=",")) +
+        # Suprimir os nomes dos eixos
+        labs(x="",y="") +
+        # Nome do gráfico
+        scale_fill_discrete(name = "Distribuição etária Samambaia")
+        # Plotar gráfico
+        piramide_grafico
 
 
 ###### iii)	Número de domicílios 
-
-TotalDomiciosDF <- sum(pdad_2018_domicilios$FATOR_PROJ_D)
+        #Plano Piloto e Samambaia
+        amostra %>%
+          # Filtrar Proprietários das casas
+          srvyr::filter(E02==1) %>%
+          # Ajustar nome das variáveis
+          srvyr::mutate(A01ra=factor(case_when(A01ra==1~"Plano Piloto",
+                                               A01ra==12~"Samambaia",
+                                               TRUE~"Outras"))) %>%
+          # Agrupar por cidade
+          srvyr::group_by(A01ra) %>%
+          # Calcular o total e o Percentual da população, com seu intervalo de confiança
+          srvyr::summarise("População Total"=survey_total(vartype = "ci"),
+                           # Calcular o percentual da população
+                           pct=survey_mean(vartype = "ci"))
+        
+        #Distrito Federal 
+        amostra %>%
+          # Filtrar População DF pelo proprietário da casa
+          srvyr::filter(E02==1) %>%
+          # Criar contador
+          srvyr::mutate(count=1) %>%
+          # Calcular o total
+          srvyr::summarise("População Total"=survey_total(count, vartype = "ci"))
+        
+      
+###### iv)	Naturalidade dos residentes (Região de Nascimento use as grandes regiões 
+#####       Norte, Nordeste, Centro-Oeste sem DF, Sudeste e Sul, crie uma categoria especial nascido DF.
 
     
   
