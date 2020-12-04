@@ -853,7 +853,7 @@ library(lubridate)
         
 ##### 1.3. Faça um histograma (com barras e alisado) para as variáveis renda domiciliar 
     # per capita e número de automóveis no domicílio para a RA X´ com o Plano Piloto e o Distrito Federal
-  
+   
 
 
 
