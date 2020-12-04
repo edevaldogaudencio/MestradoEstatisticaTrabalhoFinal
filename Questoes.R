@@ -115,9 +115,6 @@ library(lubridate)
         # Criar variável de sexo
         srvyr::mutate(sexo=case_when(E03==1~"Masculino",
                                      E03==2~"Feminino"),
-                      # Criar variável de esgotamento sanitário
-                      esgotamento_caesb=case_when(B151==1~"Com Rede Geral",
-                                                  TRUE~"Sem Rede Geral"),
                       # Criar variável de faixas de idade
                       idade_faixas=cut(idade_calculada,
                                        breaks = c(-Inf,seq(4,84,by=5),Inf),
@@ -131,15 +128,6 @@ library(lubridate)
                                                   "70 a 74 anos","75 a 79 anos",
                                                   "80 a 84 anos","Mais de 85 anos"),
                                        ordered_result = T),
-                      # Criar variável de faixas de salário do trabalho principal
-                      faixas_salario=cut(case_when(G16 %in% c(77777,88888,99999)~NA_real_,
-                                                   TRUE~as.numeric(G16)),
-                                         breaks = c(-Inf,sm,2*sm,4*sm,10*sm,20*sm,Inf),
-                                         labels = c("Até 1 salário","Mais de 1 até 2 salários",
-                                                    "Mais de 2 até 4 salários",
-                                                    "Mais de 4 até 10 salários",
-                                                    "Mais de 10 até 20 salários",
-                                                    "Mais de 20 salários")),
                       # Criar variável para as RAs
                       RA=factor(A01ra,
                                 levels=1:31,
@@ -177,7 +165,7 @@ library(lubridate)
         # Transformar em fator variáveis do tipo character
         srvyr::mutate_if(is.character,list(~factor(.))) %>%
         # Selecionar as variáveis criadas e algumas variáveis auxiliares
-        srvyr::select(RA,E02,idade_calculada,G05,sexo,esgotamento_caesb,idade_faixas,faixas_salario)
+        srvyr::select(RA,E02,idade_calculada,G05,sexo,idade_faixas)
 
 ########Questões 
       
@@ -427,10 +415,445 @@ library(lubridate)
                            # Calcular o percentual 
                            pct=survey_mean(vartype = "ci"))
         
-        
-        
-       
 
+##### 1.2 Calcular a Renda Domiciliar do  Distrito Federal, Plano Piloto e Samambaia
+        # Foi considerado como Renda Domiciliar os seguintes parâmetros:
+        #   * G16 - Renda Primária;
+        #   * G19 - Renda Sedundária;
+        #   * G201 - Aposentadoria;
+        #   * G202 - Pensão;
+        #   * G203 - Outras Rendas;
+        #   * G204 - Benefícios Sociais;
+        options(dplyr.width = Inf)
+
+                
+###### i)	Renda domiciliar per capita (calcule também Quantis Q1, Q3 e o 
+        # percentil 99, ou seja, o valor do 1% mais rico daquela RA)   
+        
+        #Calculos para o DF
+        amostra %>% 
+          srvyr::mutate(renda_prim=case_when(G16 == 77777~NA_real_,
+                                      G16 == 88888~NA_real_,
+                                      G16 == 99999~0,
+                                      TRUE~as.numeric(G16))) %>%
+          srvyr::mutate(renda_sec=case_when(G19 == 66666~0,
+                                     G19 == 77777~NA_real_,
+                                     G19 == 88888~NA_real_,
+                                     G19 == 99999~0,
+                                     TRUE ~as.numeric(G19))) %>%
+          srvyr::mutate(aposentadoria=case_when(G201 == 66666~0,
+                                         G201 == 77777~NA_real_,
+                                         G201 == 88888~NA_real_,
+                                         G201 == 99999~0,
+                                         TRUE ~as.numeric(G201))) %>%
+          srvyr::mutate(pensao=case_when(G202 == 66666~0,
+                                  G202 == 77777~NA_real_,
+                                  G202 == 88888~NA_real_,
+                                  G202 == 99999~0,
+                                  TRUE ~as.numeric(G202))) %>%
+          srvyr:: mutate(outros=case_when(G203 == 66666~0,
+                                  G203 == 77777~NA_real_,
+                                  G203 == 88888~NA_real_,
+                                  G203 == 99999~0,
+                                  TRUE ~as.numeric(G203))) %>%
+          srvyr:: mutate(beneficios=case_when(G204 == 66666~0,
+                                          G204 == 77777~NA_real_,
+                                          G204 == 88888~NA_real_,
+                                          G204 == 99999~0,
+                                          TRUE ~as.numeric(G204))) %>%
+          srvyr::summarise("Renda Total DF"=survey_total(renda_prim+renda_sec+aposentadoria+pensao+outros+beneficios, na.rm=TRUE),
+                    "Renda Média DF"=survey_mean(renda_prim+renda_sec+aposentadoria+pensao+outros+beneficios, na.rm=TRUE),
+                    "Renda Desvio DF"=survey_sd(renda_prim+renda_sec+aposentadoria+pensao+outros+beneficios, na.rm=TRUE),
+                    "Renda Q1 (<25%) DF"=survey_quantile(renda_prim+renda_sec+aposentadoria+pensao+outros+beneficios, 0.25, na.rm=TRUE),
+                    "Renda Q3 (<75%) DF"=survey_quantile(renda_prim+renda_sec+aposentadoria+pensao+outros+beneficios, 0.75, na.rm=TRUE),
+                    "Renda Q99 (<99%) DF"=survey_quantile(renda_prim+renda_sec+aposentadoria+pensao+outros+beneficios, 0.99, na.rm=TRUE))
+        
+
+        # Calculos para o Plano Piloto
+        amostra %>% filter(A01ra==1) %>% 
+          srvyr::mutate(renda_prim=case_when(G16 == 77777~NA_real_,
+                                             G16 == 88888~NA_real_,
+                                             G16 == 99999~0,
+                                             TRUE~as.numeric(G16))) %>%
+          srvyr::mutate(renda_sec=case_when(G19 == 66666~0,
+                                            G19 == 77777~NA_real_,
+                                            G19 == 88888~NA_real_,
+                                            G19 == 99999~0,
+                                            TRUE ~as.numeric(G19))) %>%
+          srvyr::mutate(aposentadoria=case_when(G201 == 66666~0,
+                                                G201 == 77777~NA_real_,
+                                                G201 == 88888~NA_real_,
+                                                G201 == 99999~0,
+                                                TRUE ~as.numeric(G201))) %>%
+          srvyr::mutate(pensao=case_when(G202 == 66666~0,
+                                         G202 == 77777~NA_real_,
+                                         G202 == 88888~NA_real_,
+                                         G202 == 99999~0,
+                                         TRUE ~as.numeric(G202))) %>%
+          srvyr:: mutate(outros=case_when(G203 == 66666~0,
+                                          G203 == 77777~NA_real_,
+                                          G203 == 88888~NA_real_,
+                                          G203 == 99999~0,
+                                          TRUE ~as.numeric(G203))) %>%
+          srvyr:: mutate(beneficios=case_when(G204 == 66666~0,
+                                              G204 == 77777~NA_real_,
+                                              G204 == 88888~NA_real_,
+                                              G204 == 99999~0,
+                                              TRUE ~as.numeric(G204))) %>%
+          summarise("Renda Total Plano"=survey_total(renda_prim+renda_sec+aposentadoria+pensao+outros+beneficios, na.rm=TRUE),
+                    "Renda Média Plano"=survey_mean(renda_prim+renda_sec+aposentadoria+pensao+outros+beneficios, na.rm=TRUE),
+                    "Renda Desvio Plano"=survey_sd(renda_prim+renda_sec+aposentadoria+pensao+outros+beneficios, na.rm=TRUE),
+                    "Renda Q1 (<25%) Plano"=survey_quantile(renda_prim+renda_sec+aposentadoria+pensao+outros+beneficios, 0.25, na.rm=TRUE),
+                    "Renda Q3 (<75%) Plano"=survey_quantile(renda_prim+renda_sec+aposentadoria+pensao+outros+beneficios, 0.75, na.rm=TRUE),
+                    "Renda Q99 (<99%) Plano"=survey_quantile(renda_prim+renda_sec+aposentadoria+pensao+outros+beneficios, 0.99, na.rm=TRUE))
+        
+        # Calculos para Samambaia
+        amostra %>% filter(A01ra==12) %>% 
+          srvyr::mutate(renda_prim=case_when(G16 == 77777~NA_real_,
+                                             G16 == 88888~NA_real_,
+                                             G16 == 99999~0,
+                                             TRUE~as.numeric(G16))) %>%
+          srvyr::mutate(renda_sec=case_when(G19 == 66666~0,
+                                            G19 == 77777~NA_real_,
+                                            G19 == 88888~NA_real_,
+                                            G19 == 99999~0,
+                                            TRUE ~as.numeric(G19))) %>%
+          srvyr::mutate(aposentadoria=case_when(G201 == 66666~0,
+                                                G201 == 77777~NA_real_,
+                                                G201 == 88888~NA_real_,
+                                                G201 == 99999~0,
+                                                TRUE ~as.numeric(G201))) %>%
+          srvyr::mutate(pensao=case_when(G202 == 66666~0,
+                                         G202 == 77777~NA_real_,
+                                         G202 == 88888~NA_real_,
+                                         G202 == 99999~0,
+                                         TRUE ~as.numeric(G202))) %>%
+          srvyr:: mutate(outros=case_when(G203 == 66666~0,
+                                          G203 == 77777~NA_real_,
+                                          G203 == 88888~NA_real_,
+                                          G203 == 99999~0,
+                                          TRUE ~as.numeric(G203))) %>%
+          srvyr:: mutate(beneficios=case_when(G204 == 66666~0,
+                                              G204 == 77777~NA_real_,
+                                              G204 == 88888~NA_real_,
+                                              G204 == 99999~0,
+                                              TRUE ~as.numeric(G204))) %>%
+          summarise("Renda Total Samambaia"=survey_total(renda_prim+renda_sec+aposentadoria+pensao+outros+beneficios, na.rm=TRUE),
+                    "Renda Média Samambaia"=survey_mean(renda_prim+renda_sec+aposentadoria+pensao+outros+beneficios, na.rm=TRUE),
+                    "Renda Desvio Samambaia"=survey_sd(renda_prim+renda_sec+aposentadoria+pensao+outros+beneficios, na.rm=TRUE),
+                    "Renda Q1 (<25%) Samambaia"=survey_quantile(renda_prim+renda_sec+aposentadoria+pensao+outros+beneficios, 0.25, na.rm=TRUE),
+                    "Renda Q3 (<75%) Samambaia"=survey_quantile(renda_prim+renda_sec+aposentadoria+pensao+outros+beneficios, 0.75, na.rm=TRUE),
+                    "Renda Q99 (<99%) Samambaia"=survey_quantile(renda_prim+renda_sec+aposentadoria+pensao+outros+beneficios, 0.99, na.rm=TRUE))
+        
+                    
+        # Agora os  cálculos apenas para a Renda Primária NÃO PER CAPITA
+        # Calculos para o DF
+        amostra %>% 
+          mutate(renda_prim=case_when(G16 == 77777 ~ NA_real_,
+                                      G16 == 88888 ~ NA_real_,
+                                      G16 == 99999 ~ 0,
+                                      TRUE ~as.numeric(G16))) %>%
+          summarise("Renda Total DF"=survey_total(renda_prim, na.rm=TRUE),
+                    "Renda Média DF"=survey_mean(renda_prim, na.rm=TRUE),
+                    "Renda Desvio DF"=survey_sd(renda_prim, na.rm=TRUE),
+                    "Renda Q1 (<25%) DF"=survey_quantile(renda_prim, 0.25, na.rm=TRUE),
+                    "Renda Q3 (<75%) DF"=survey_quantile(renda_prim, 0.75, na.rm=TRUE),
+                    "Renda Q99 (<99%) DF"=survey_quantile(renda_prim, 0.99, na.rm=TRUE)) #DF
+        
+        # Calculos para o Plano Piloto
+        amostra %>% filter(A01ra==1) %>% 
+          mutate(renda_prim=case_when(G16 == 77777 ~ NA_real_,
+                                      G16 == 88888 ~ NA_real_,
+                                      G16 == 99999 ~ 0,
+                                      TRUE ~as.numeric(G16))) %>%
+          summarise("Renda Total Plano"=survey_total(renda_prim, na.rm=TRUE),
+                    "Renda Média Plano"=survey_mean(renda_prim, na.rm=TRUE),
+                    "Renda Desvio Plano"=survey_sd(renda_prim, na.rm=TRUE),
+                    "Renda Q1 (<25%) Plano"=survey_quantile(renda_prim, 0.25, na.rm=TRUE),
+                    "Renda Q3 (<75%) Plano"=survey_quantile(renda_prim, 0.75, na.rm=TRUE),
+                    "Renda Q99 (<99%) Plano"=survey_quantile(renda_prim, 0.99, na.rm=TRUE)) #PP
+        
+        amostra %>% filter(A01ra==12) %>% # Calculos para Samambaia
+          mutate(renda_prim=case_when(G16 == 77777 ~ NA_real_,
+                                      G16 == 88888 ~ NA_real_,
+                                      G16 == 99999 ~ 0,
+                                      TRUE ~as.numeric(G16))) %>%
+          summarise("Renda Total Samambaia"=survey_total(renda_prim, na.rm=TRUE),
+                    "Renda Média Samambaia"=survey_mean(renda_prim, na.rm=TRUE),
+                    "Renda Desvio Samambaia"=survey_sd(renda_prim, na.rm=TRUE),
+                    "Renda Q1 (<25%) Samambaia"=survey_quantile(renda_prim, 0.25, na.rm=TRUE),
+                    "Renda Q3 (<75%) Samambaia"=survey_quantile(renda_prim, 0.75, na.rm=TRUE),
+                    "Renda Q99 (<99%) Samambaia"=survey_quantile(renda_prim, 0.99, na.rm=TRUE))
+        
+        # Escolaridade das pessoa de  25 anos ou mais
+        amostra %>% # Calculos para o DF
+          srvyr::filter(idade_calculada >= 25) %>%
+          mutate(escolaridade=case_when(F11 == 1 ~ "alfabetização",
+                                        F11 == 2 ~ "fundamental",
+                                        F11 == 3 ~ "fundamental",
+                                        F11 == 4 ~ "medio",
+                                        F11 == 5 ~ "fundamental",
+                                        F11 == 6 ~ "medio",
+                                        F11 == 7 ~ "superior",
+                                        F11 == 8 ~ "especialização",
+                                        F11 == 9 ~ "mestrado",
+                                        F11 == 10 ~ "dotorado",
+                                        TRUE ~ NA_character_)) %>%
+          group_by(escolaridade) %>%
+          summarise("Escolaridade DF"=survey_total(na.rm=TRUE))
+        
+        amostra %>% # Calculos para o Plano Piloto
+          filter(A01ra == 1) %>% 
+          filter(idade_calculada >= 25) %>%
+          mutate(escolaridade=case_when(F11 == 1 ~ "alfabetização",
+                                        F11 == 2 ~ "fundamental",
+                                        F11 == 3 ~ "fundamental",
+                                        F11 == 4 ~ "medio",
+                                        F11 == 5 ~ "fundamental",
+                                        F11 == 6 ~ "medio",
+                                        F11 == 7 ~ "superior",
+                                        F11 == 8 ~ "especialização",
+                                        F11 == 9 ~ "mestrado",
+                                        F11 == 10 ~ "dotorado",
+                                        TRUE ~ NA_character_)) %>%
+          group_by(escolaridade) %>%
+          summarise("Escolaridade Plano"=survey_total(na.rm=TRUE))
+        
+        amostra %>% # Calculos para Samambaia
+          filter(A01ra == 12) %>% 
+          filter(idade_calculada >= 25) %>%
+          mutate(escolaridade=case_when(F11 == 1 ~ "alfabetização",
+                                        F11 == 2 ~ "fundamental",
+                                        F11 == 3 ~ "fundamental",
+                                        F11 == 4 ~ "medio",
+                                        F11 == 5 ~ "fundamental",
+                                        F11 == 6 ~ "medio",
+                                        F11 == 7 ~ "superior",
+                                        F11 == 8 ~ "especialização",
+                                        F11 == 9 ~ "mestrado",
+                                        F11 == 10 ~ "dotorado",
+                                        TRUE ~ NA_character_)) %>%
+          group_by(escolaridade) %>%
+          summarise("Escolaridade Samambaia"=survey_total(na.rm=TRUE))
+        
+###### iv)	Modo de transporte para o trabalho (apenas uma variável qualitativa
+        
+        # Como existem pessoas com mais de uma opção de transporte para o trabalhoa,
+        # optamos por agrupar as diferentes formas numa matrix de possibilidades.
+        amostra %>% # Cálculos para o DF
+          mutate(Onibus=factor(case_when(G141 == 1 ~ "onibus",
+                                         TRUE ~ NA_character_))) %>%
+          mutate(Automovel=factor(case_when(G142 == 1 ~ "automovel",
+                                            TRUE ~ NA_character_))) %>%
+          mutate(Utilitario=factor(case_when(G143 == 1 ~ "utilitario",
+                                             TRUE ~ NA_character_))) %>%
+          mutate(Metro=factor(case_when(G144 == 1 ~ "metro",
+                                        TRUE ~ NA_character_))) %>%
+          mutate(Moto=factor(case_when(G145 == 1 ~ "moto",
+                                       TRUE ~ NA_character_))) %>%
+          mutate(Bike=factor(case_when(G146 == 1 ~ "bike",
+                                       TRUE ~ NA_character_))) %>%
+          mutate(Andando=factor(case_when(G144 == 1 ~ "andando",
+                                          TRUE ~ NA_character_))) %>%
+          group_by(Onibus, Automovel,Utilitario, Metro, Moto, Bike, Andando) %>%
+          summarise("Quantidade DF"=survey_total(na.rm=TRUE)) %>% print(n=100)
+        
+        amostra %>% # Cálculos para o Plano Piloto
+          filter(A01ra == 1) %>% 
+          mutate(Onibus=factor(case_when(G141 == 1 ~ "onibus",
+                                         TRUE ~ NA_character_))) %>%
+          mutate(Automovel=factor(case_when(G142 == 1 ~ "automovel",
+                                            TRUE ~ NA_character_))) %>%
+          mutate(Utilitario=factor(case_when(G143 == 1 ~ "utilitario",
+                                             TRUE ~ NA_character_))) %>%
+          mutate(Metro=factor(case_when(G144 == 1 ~ "metro",
+                                        TRUE ~ NA_character_))) %>%
+          mutate(Moto=factor(case_when(G145 == 1 ~ "moto",
+                                       TRUE ~ NA_character_))) %>%
+          mutate(Bike=factor(case_when(G146 == 1 ~ "bike",
+                                       TRUE ~ NA_character_))) %>%
+          mutate(Andando=factor(case_when(G144 == 1 ~ "andando",
+                                          TRUE ~ NA_character_))) %>%
+          group_by(Onibus, Automovel,Utilitario, Metro, Moto, Bike, Andando) %>%
+          summarise("Qtd. Plano"=survey_total(na.rm=TRUE)) %>% print(n=100)
+        
+        amostra %>% # Cálculos para Samambaia
+          filter(A01ra == 12) %>% 
+          mutate(Onibus=factor(case_when(G141 == 1 ~ "onibus",
+                                         TRUE ~ NA_character_))) %>%
+          mutate(Automovel=factor(case_when(G142 == 1 ~ "automovel",
+                                            TRUE ~ NA_character_))) %>%
+          mutate(Utilitario=factor(case_when(G143 == 1 ~ "utilitario",
+                                             TRUE ~ NA_character_))) %>%
+          mutate(Metro=factor(case_when(G144 == 1 ~ "metro",
+                                        TRUE ~ NA_character_))) %>%
+          mutate(Moto=factor(case_when(G145 == 1 ~ "moto",
+                                       TRUE ~ NA_character_))) %>%
+          mutate(Bike=factor(case_when(G146 == 1 ~ "bike",
+                                       TRUE ~ NA_character_))) %>%
+          mutate(Andando=factor(case_when(G144 == 1 ~ "andando",
+                                          TRUE ~ NA_character_))) %>%
+          group_by(Onibus, Automovel,Utilitario, Metro, Moto, Bike, Andando) %>%
+          summarise("Qtd. Samambaia"=survey_total(na.rm=TRUE)) %>% print(n=100)
+        
+###### v)	Tempo gasto de deslocamento ao trabalho (veja que a variável está em classes, 
+        # podemos colocar o ponto médio do intervalo para o cálculo de medidas de posição).  
+        
+        # Calculos para o DF
+        amostra %>% 
+          #filter(A01ra == 12) %>% 
+          mutate(deslocamento=case_when(G15 == 1 ~ 7L,
+                                        G15 == 2 ~ 22L,
+                                        G15 == 3 ~ 37L,
+                                        G15 == 4 ~ 52L,
+                                        G15 == 5 ~ 75L,
+                                        G15 == 6 ~ 97L,
+                                        G15 == 7 ~ 112L,
+                                        G15 == 8 ~ 120L,
+                                        TRUE ~ NA_integer_)) %>%
+          summarise("Tempo Médio Trabalho DF"=survey_mean(deslocamento,na.rm=TRUE),
+                    "Tempo Mediana Trabalho DF"=survey_median(deslocamento,na.rm=TRUE),
+                    "Tempo Variância Trabalho DF"=survey_var(deslocamento,na.rm=TRUE),
+                    "Tempo Desvio Padrão Trabalho DF"=survey_sd(deslocamento,na.rm=TRUE),
+                    "Tempo Q1 (<25%) Trabalho DF"=survey_quantile(deslocamento, 0.25, na.rm=TRUE),
+                    "Tempo Q3 (<75%) Trabalho DF"=survey_quantile(deslocamento, 0.75, na.rm=TRUE),
+                    "Tempo Q99 (<99%) Trabalho DF"=survey_quantile(deslocamento, 0.99, na.rm=TRUE))
+        
+        # Calculos para o Plano Piloto
+        amostra %>% 
+          filter(A01ra == 1) %>% 
+          mutate(deslocamento=case_when(G15 == 1 ~ 7L,
+                                        G15 == 2 ~ 22L,
+                                        G15 == 3 ~ 37L,
+                                        G15 == 4 ~ 52L,
+                                        G15 == 5 ~ 75L,
+                                        G15 == 6 ~ 97L,
+                                        G15 == 7 ~ 112L,
+                                        G15 == 8 ~ 120L,
+                                        TRUE ~ NA_integer_)) %>%
+          summarise("Tempo Médio Trabalho Plano"=survey_mean(deslocamento,na.rm=TRUE),
+                    "Tempo Mediana Trabalho Plano"=survey_median(deslocamento,na.rm=TRUE),
+                    "Tempo Variância Trabalho Plano"=survey_var(deslocamento,na.rm=TRUE),
+                    "Tempo Desvio Padrão Trabalho Plano"=survey_sd(deslocamento,na.rm=TRUE),
+                    "Tempo Q1 (<25%) Trabalho Plano"=survey_quantile(deslocamento, 0.25, na.rm=TRUE),
+                    "Tempo Q3 (<75%) Trabalho Plano"=survey_quantile(deslocamento, 0.75, na.rm=TRUE),
+                    "Tempo Q99 (<99%) Trabalho Plano"=survey_quantile(deslocamento, 0.99, na.rm=TRUE))
+        
+        # Calculos para Samambaia
+        amostra %>% 
+          filter(A01ra == 12) %>% 
+          mutate(deslocamento=case_when(G15 == 1 ~ 7L,
+                                        G15 == 2 ~ 22L,
+                                        G15 == 3 ~ 37L,
+                                        G15 == 4 ~ 52L,
+                                        G15 == 5 ~ 75L,
+                                        G15 == 6 ~ 97L,
+                                        G15 == 7 ~ 112L,
+                                        G15 == 8 ~ 120L,
+                                        TRUE ~ NA_integer_)) %>%
+          summarise("Tempo Médio Trabalho Samambaia"=survey_mean(deslocamento,na.rm=TRUE),
+                    "Tempo Mediana Trabalho Samambaia"=survey_median(deslocamento,na.rm=TRUE),
+                    "Tempo Variância Trabalho Samambaia"=survey_var(deslocamento,na.rm=TRUE),
+                    "Tempo Desvio Padrão Trabalho Samambaia"=survey_sd(deslocamento,na.rm=TRUE),
+                    "Tempo Q1 (<25%) Trabalho Samambaia"=survey_quantile(deslocamento, 0.25, na.rm=TRUE),
+                    "Tempo Q3 (<75%) Trabalho Samambaia"=survey_quantile(deslocamento, 0.75, na.rm=TRUE),
+                    "Tempo Q99 (<99%) Trabalho Samambaia"=survey_quantile(deslocamento, 0.99, na.rm=TRUE))
+        
+###### vi) Número de automóveis no domicilio   
+        # Cálculos para DF
+        amostra %>% 
+          filter(E02 == 1) %>% 
+          mutate(carro=case_when(C011 == 88888 ~NA_real_,
+                                 TRUE ~ as.numeric(C011))) %>%
+          summarise("Total da Carros DF"=survey_total(carro, na.rm=TRUE),
+                    "Média de Carros DF"=survey_mean(carro, na.rm=TRUE),
+                    "Desvio de Carros DF"=survey_sd(carro, na.rm=TRUE),
+                    "Carros Q1 (<25%) DF"=survey_quantile(carro, 0.25, na.rm=TRUE),
+                    "Carros Q3 (<75%) DF"=survey_quantile(carro, 0.75, na.rm=TRUE),
+                    "Carros Q99 (<99%) DF"=survey_quantile(carro, 0.99, na.rm=TRUE))
+        
+        amostra %>% # Cálculos para o Plano Piloto
+          filter(E02 == 1 & A01ra == 1) %>% 
+          mutate(carro=case_when(C011 == 88888 ~NA_real_,
+                                 TRUE ~ as.numeric(C011))) %>%
+          summarise("Total da Carros Plano"=survey_total(carro, na.rm=TRUE),
+                    "Média de Carros Plano"=survey_mean(carro, na.rm=TRUE),
+                    "Desvio de Carros Plano"=survey_sd(carro, na.rm=TRUE),
+                    "Carros Q1 (<25%) Plano"=survey_quantile(carro, 0.25, na.rm=TRUE),
+                    "Carros Q3 (<75%) Plano"=survey_quantile(carro, 0.75, na.rm=TRUE),
+                    "Carros Q99 (<99%) Plano"=survey_quantile(carro, 0.99, na.rm=TRUE))
+        
+        amostra %>% # Cálculos para Samambaia
+          filter(E02 == 1 & A01ra == 12) %>% 
+          mutate(carro=case_when(C011 == 88888 ~NA_real_,
+                                 TRUE ~ as.numeric(C011))) %>%
+          summarise("Total da Carros Samambaia"=survey_total(carro, na.rm=TRUE),
+                    "Média de Carros Samambaia"=survey_mean(carro, na.rm=TRUE),
+                    "Desvio de Carros Samambaia"=survey_sd(carro, na.rm=TRUE),
+                    "Carros Q1 (<25%) Samambaia"=survey_quantile(carro, 0.25, na.rm=TRUE),
+                    "Carros Q3 (<75%) Samambaia"=survey_quantile(carro, 0.75, na.rm=TRUE),
+                    "Carros Q99 (<99%) Samambaia"=survey_quantile(carro, 0.99, na.rm=TRUE))
+        
+###### vii) Número de pessoas no domicilio      
+        amostra %>% filter(E02==1) %>% #Cálculo para o Distrito Federal
+          summarise("Média p/ Domicílio DF"=survey_mean(A01nPessoas,na.rm=TRUE),
+                    "Mediana p/ Domicílio DF"=survey_median(A01nPessoas,na.rm=TRUE),
+                    "Variancia p/ Domicílio DF"=survey_mean(A01nPessoas,na.rm=TRUE),
+                    "Desvio Padrão p/ Domicílio DF"=survey_sd(A01nPessoas,na.rm=TRUE),
+                    "Q1 (<25%) p/ Domicílio DF"=survey_quantile(A01nPessoas,0.25,na.rm=TRUE),
+                    "Q3 (<75%) p/ Domicílio DF"=survey_quantile(A01nPessoas,0.75,na.rm=TRUE),
+                    "Q3 (<75%) p/ Domicílio DF"=survey_quantile(A01nPessoas,0.99,na.rm=TRUE))
+        
+        amostra %>% filter(E02==1 & A01ra==1) %>%  # Cálculo para o Plano Piloto
+          summarise("Média p/ Domicílio Plano"=survey_mean(A01nPessoas,na.rm=TRUE),
+                    "Mediana p/ Domicílio Plano"=survey_median(A01nPessoas,na.rm=TRUE),
+                    "Variancia p/ Domicílio Plano"=survey_mean(A01nPessoas,na.rm=TRUE),
+                    "Desvio Padrão p/ Domicílio Plano"=survey_sd(A01nPessoas,na.rm=TRUE),
+                    "Q1 (<25%) p/ Domicílio Plano"=survey_quantile(A01nPessoas,0.25,na.rm=TRUE),
+                    "Q3 (<75%) p/ Domicílio Plano"=survey_quantile(A01nPessoas,0.75,na.rm=TRUE),
+                    "Q3 (<75%) p/ Domicílio Plano"=survey_quantile(A01nPessoas,0.99,na.rm=TRUE))
+        
+        amostra %>% filter(E02==1 & A01ra==12) %>% # Cálculo para Samambaia
+          summarise("Média p/ Domicílio Samambaia"=survey_mean(A01nPessoas,na.rm=TRUE),
+                    "Mediana p/ Domicílio Samambaia"=survey_median(A01nPessoas,na.rm=TRUE),
+                    "Variancia p/ Domicílio Samambaia"=survey_mean(A01nPessoas,na.rm=TRUE),
+                    "Desvio Padrão p/ Domicílio Samambaia"=survey_sd(A01nPessoas,na.rm=TRUE),
+                    "Q1 (<25%) p/ Domicílio Samambaia"=survey_quantile(A01nPessoas,0.25,na.rm=TRUE),
+                    "Q3 (<75%) p/ Domicílio Samambaia"=survey_quantile(A01nPessoas,0.75,na.rm=TRUE),
+                    "Q3 (<75%) p/ Domicílio Samambaia"=survey_quantile(A01nPessoas,0.99,na.rm=TRUE))
+  
+###### viii)Número de dormitórios no domicílio               
+        amostra %>% filter(E02==1) %>% #Cálculo para o Distrito Federal
+          summarise("Média p/ Cômodo DF"=survey_mean(B12,na.rm=TRUE),
+                    "Mediana p/ Cômodo DF"=survey_median(B12,na.rm=TRUE),
+                    "Variancia p/ Cômodo DF"=survey_mean(B12,na.rm=TRUE),
+                    "Desvio Padrão p/ Cômodo DF"=survey_sd(B12,na.rm=TRUE),
+                    "Q1 (<25%) p/ Cômodo DF"=survey_quantile(B12,0.25,na.rm=TRUE),
+                    "Q3 (<75%) p/ Cômodo DF"=survey_quantile(B12,0.75,na.rm=TRUE),
+                    "Q3 (<75%) p/ Cômodo DF"=survey_quantile(B12,0.99,na.rm=TRUE))
+        
+        amostra %>% filter(E02==1 & A01ra==1) %>%  # Cálculo para o Plano Piloto
+          summarise("Média p/ Cômodo Plano"=survey_mean(B12,na.rm=TRUE),
+                    "Mediana p/ Cômodo Plano"=survey_median(B12,na.rm=TRUE),
+                    "Variancia p/ Cômodo Plano"=survey_mean(B12,na.rm=TRUE),
+                    "Desvio Padrão p/ Cômodo Plano"=survey_sd(B12,na.rm=TRUE),
+                    "Q1 (<25%) p/ Cômodo Plano"=survey_quantile(B12,0.25,na.rm=TRUE),
+                    "Q3 (<75%) p/ Cômodo Plano"=survey_quantile(B12,0.75,na.rm=TRUE),
+                    "Q3 (<75%) p/ Cômodo Plano"=survey_quantile(B12,0.99,na.rm=TRUE))
+        
+        amostra %>% filter(E02==1 & A01ra==12) %>% # Cálculo para Samambaia
+          summarise("Média p/ Cômodo Samambaia"=survey_mean(B12,na.rm=TRUE),
+                    "Mediana p/ Cômodo Samambaia"=survey_median(B12,na.rm=TRUE),
+                    "Variancia p/ Cômodo Samambaia"=survey_mean(B12,na.rm=TRUE),
+                    "Desvio Padrão p/ Cômodo Samambaia"=survey_sd(B12,na.rm=TRUE),
+                    "Q1 (<25%) p/ Cômodo Samambaia"=survey_quantile(B12,0.25,na.rm=TRUE),
+                    "Q3 (<75%) p/ Cômodo Samambaia"=survey_quantile(B12,0.75,na.rm=TRUE),
+                    "Q3 (<75%) p/ Cômodo Samambaia"=survey_quantile(B12,0.99,na.rm=TRUE))
+        
+        
+##### 1.3. Faça um histograma (com barras e alisado) para as variáveis renda domiciliar 
+    # per capita e número de automóveis no domicílio para a RA X´ com o Plano Piloto e o Distrito Federal
+  
 
 
 
