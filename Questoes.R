@@ -5,6 +5,7 @@ library(dplyr)
 library(srvyr)
 library(Hmisc)
 library(lubridate) 
+library(tidyverse)
 
 ######## Preparando o ambiente
 
@@ -24,6 +25,7 @@ library(lubridate)
       dic_moradores <- readxl::read_excel("dados/Dicionario_de_Variaveis_PDAD_2018.xlsx",
                                           skip = 1,
                                           sheet = 2)
+      
       
       ### Adicionar rótulos à base da pdad
       # Criar um objeto com os rótulos
@@ -60,6 +62,54 @@ library(lubridate)
       # Verificar o resultado
       #Hmisc::describe(pdad_2018_domicilios)
       
+      # Criar variável para escolaridade
+      pdad_2018_moradores <- pdad_2018_moradores %>%
+        # Fazer a escolaridade de quem não estuda
+        dplyr::mutate(escolaridade_nao_estuda=case_when(F02==4~"Sem escolaridade",
+                                                        F11==1~"Sem escolaridade",
+                                                        F11==2&F12==10~"Sem escolaridade",
+                                                        F11==3&F12==10~"Sem escolaridade",
+                                                        F11==2&F12 %in% c(1:7)~"Fundamental incompleto",
+                                                        F11==3&F12 %in% c(1:8)~"Fundamental incompleto",
+                                                        F11==5&F13==2~"Fundamental incompleto",
+                                                        F11==2&F12==8~"Fundamental completo",
+                                                        F11==3&F12==9~"Fundamental completo",
+                                                        F11==5&F13==1~"Fundamental completo",
+                                                        F11==4&F12==10~"Fundamental completo",
+                                                        F11==4&F12 %in% c(1:2)~"Médio incompleto",
+                                                        F11==6&F13==2~"Médio incompleto",
+                                                        F11==4&F12 %in% c(3,4)~"Médio completo",
+                                                        F11==6&F13==1~"Médio completo",
+                                                        F11==7&F13==2~"Superior incompleto",
+                                                        F11==7&F13==1~"Superior completo",
+                                                        F11 %in% c(8:10)~"Superior completo",
+                                                        TRUE~NA_character_),
+                      # Fazer a escolaridade de quem estuda
+                      escolaridadet=case_when(F07 %in% c(1,2,3)~"Sem escolaridade",
+                                              F07 %in% c(4,7)~"Fundamental incompleto",
+                                              F07 %in% c(5,6,8)~"Médio incompleto",
+                                              F07==9~"Superior incompleto",
+                                              F07 %in% c(10:12)~"Superior completo",
+                                              TRUE~escolaridade_nao_estuda),
+                      # Ajustar a escolaridade de quem já concluiu outro curso superior
+                      escolaridadet=case_when(F09==1&F10 %in% c(1:4)~"Superior completo",
+                                              TRUE~escolaridadet),
+                      # Ajustar o fator ordenado
+                      escolaridade=factor(ordered(case_when(escolaridadet=="Sem escolaridade"~1,
+                                                            escolaridadet=="Fundamental incompleto"~2,
+                                                            escolaridadet=="Fundamental completo"~3,
+                                                            escolaridadet=="Médio incompleto"~4,
+                                                            escolaridadet=="Médio completo"~5,
+                                                            escolaridadet=="Superior incompleto"~6,
+                                                            escolaridadet=="Superior completo"~7),
+                                                  levels=c(1:7),
+                                                  labels=c("Sem escolaridade",
+                                                           "Fundamental incompleto",
+                                                           "Fundamental completo",
+                                                           "Médio incompleto",
+                                                           "Médio completo",
+                                                           "Superior incompleto",
+                                                           "Superior completo"))))
       
       ###### Unificar arquivos de dados a partir do identificador único da fixa
       # Fazer o join das bases
@@ -74,6 +124,36 @@ library(lubridate)
         # Mudar a variável pos-estrato para o tipo character
         dplyr::mutate(POS_ESTRATO=as.character(POS_ESTRATO))
       
+      # Armazenar informação em um objeto
+      renda_domiciliar <- pdad_2018_moradores %>%
+        # Vamos mudar para ausente os valores das variáveis G16,G19,G201 até G204
+        # com códigos 77777 ou 88888.
+        # Vamos também mudar para 0 quando os valores que não se aplicarem
+        # ou não forem observados rendimentos
+        dplyr::mutate_at(vars(G16,G19,G201:G204), # Variáveis a serem alteradas
+                         # Função a ser aplicada
+                         list(M=~case_when(. %in% c(77777,88888)~NA_real_,
+                                           . %in% c(66666,99999)~0,
+                                           TRUE~as.numeric(.)))) %>%
+        # Selecionar apenas as variáveis de interesse
+        dplyr::select(A01nFicha,E02,G16,G19,G201:G204,G16_M:G204_M) %>%
+        # Somar as variáveis modificadas para construir a renda individual
+        dplyr::mutate(renda_individual=rowSums(.[,c("G16_M","G19_M",
+                                                    "G201_M","G202_M",
+                                                    "G203_M","G204_M")],na.rm = F)) %>%
+        # Desconsiderar os empregados domesticos moradores e seus parentes
+        dplyr::filter(!E02 %in% c(16,17,18)) %>%
+        # Agrupar por domicílio
+        dplyr::group_by(A01nFicha) %>%
+        # Somar os valores por domicílios
+        dplyr::summarise(renda_dom=sum(renda_individual, na.rm = F),
+                         # Construir o número de pessoas no domicílio, por esse critério de rendiment0
+                         pessoas=n(),
+                         # Calcular a renda domiciliar per capita
+                         renda_dom_pc=renda_dom/pessoas)
+      # Juntar as bases
+      pdad <- pdad %>% dplyr::left_join(renda_domiciliar)
+    
       
       ###### Criar o desenho inicial da pesquisa
       #Defenir uma semente para reprodutibilidade
@@ -166,7 +246,10 @@ library(lubridate)
         srvyr::mutate_if(is.character,list(~factor(.))) %>%
         # Selecionar as variáveis criadas e algumas variáveis auxiliares
         srvyr::select(RA,E02,idade_calculada,G05,sexo,idade_faixas)
+      
+      
 
+            
 ########Questões 
       
 ##### 1.1 Apresente um perfil da RA X, Plano Piloto e do Distrito Federal, estimando as seguintes variáveis
@@ -378,42 +461,21 @@ library(lubridate)
 #####       Norte, Nordeste, Centro-Oeste sem DF, Sudeste e Sul, crie uma categoria especial nascido DF.
         amostra %>%
           # Ajustar nome das variáveis
-          srvyr::mutate(E142=factor(case_when(E142==11~"Norte",
-                                              E142==12~"Norte",
-                                              E142==13~"Norte",
-                                              E142==14~"Norte",
-                                              E142==15~"Norte",
-                                              E142==16~"Norte",
-                                              E142==17~"Centro-Oeste",
-                                              E142==21~"Nordeste",
-                                              E142==22~"Nordeste",
-                                              E142==23~"Nordeste",
-                                              E142==24~"Nordeste",
-                                              E142==25~"Nordeste",
-                                              E142==26~"Nordeste",
-                                              E142==27~"Nordeste",
-                                              E142==28~"Nordeste",
-                                              E142==29~"Nordeste",
-                                              E142==31~"Sudeste",
-                                              E142==32~"Sudeste",
-                                              E142==33~"Sudeste",
-                                              E142==35~"Sudeste",
-                                              E142==41~"Sul",
-                                              E142==42~"Sul",
-                                              E142==43~"Sul",
-                                              E142==50~"Centro-Oeste",
-                                              E142==51~"Centro-Oeste",
-                                              E142==52~"Centro-Oeste",
-                                              E142==53~"Centro-Oeste",
-                                              E142==99~"Distrito Federal",
-                                              E142==88~"Não Sabe",
-                                              E142==0~"Outro País"))) %>%
-          # Agrupar por cidade
+          srvyr::mutate(E142=factor(case_when(E142 %in% c(11:17)~"Norte",
+                                             E142 %in% c(21:29)~"Nordeste",
+                                             E142 %in% c(31:35)~"Sudeste",
+                                             E142 %in% c(41:43)~"Sul",
+                                             E142 %in% c(50:52)~"Centro-oeste",
+                                             E142==88~"Z_Não Sabe",
+                                             E142==0~"Z_Outro País",
+                                             E13==1~"DF"))) %>%
+        # Agrupar por região
           srvyr::group_by(E142) %>%
-          # Calcular o total e o Percentual, com seu intervalo de confiança
-          srvyr::summarise("Naturalidade"=survey_total(vartype = "ci"),
-                           # Calcular o percentual 
-                           pct=survey_mean(vartype = "ci"))
+            # Calcular o total e o Percentual, com seu intervalo de confiança
+            srvyr::summarise("Naturalidade"=survey_total(vartype = "ci"),
+                             # Calcular o percentual 
+                             pct=survey_mean(vartype = "ci"))
+    
         
 
 ##### 1.2 Calcular a Renda Domiciliar do  Distrito Federal, Plano Piloto e Samambaia
@@ -432,209 +494,109 @@ library(lubridate)
         
         #Calculos para o DF
         amostra %>% 
-          srvyr::mutate(renda_prim=case_when(G16 == 77777~NA_real_,
-                                      G16 == 88888~NA_real_,
-                                      G16 == 99999~0,
-                                      TRUE~as.numeric(G16))) %>%
-          srvyr::mutate(renda_sec=case_when(G19 == 66666~0,
-                                     G19 == 77777~NA_real_,
-                                     G19 == 88888~NA_real_,
-                                     G19 == 99999~0,
-                                     TRUE ~as.numeric(G19))) %>%
-          srvyr::mutate(aposentadoria=case_when(G201 == 66666~0,
-                                         G201 == 77777~NA_real_,
-                                         G201 == 88888~NA_real_,
-                                         G201 == 99999~0,
-                                         TRUE ~as.numeric(G201))) %>%
-          srvyr::mutate(pensao=case_when(G202 == 66666~0,
-                                  G202 == 77777~NA_real_,
-                                  G202 == 88888~NA_real_,
-                                  G202 == 99999~0,
-                                  TRUE ~as.numeric(G202))) %>%
-          srvyr:: mutate(outros=case_when(G203 == 66666~0,
-                                  G203 == 77777~NA_real_,
-                                  G203 == 88888~NA_real_,
-                                  G203 == 99999~0,
-                                  TRUE ~as.numeric(G203))) %>%
-          srvyr:: mutate(beneficios=case_when(G204 == 66666~0,
-                                          G204 == 77777~NA_real_,
-                                          G204 == 88888~NA_real_,
-                                          G204 == 99999~0,
-                                          TRUE ~as.numeric(G204))) %>%
-          srvyr::summarise("Renda Total DF"=survey_total(renda_prim+renda_sec+aposentadoria+pensao+outros+beneficios, na.rm=TRUE),
-                    "Renda Média DF"=survey_mean(renda_prim+renda_sec+aposentadoria+pensao+outros+beneficios, na.rm=TRUE),
-                    "Renda Desvio DF"=survey_sd(renda_prim+renda_sec+aposentadoria+pensao+outros+beneficios, na.rm=TRUE),
-                    "Renda Q1 (<25%) DF"=survey_quantile(renda_prim+renda_sec+aposentadoria+pensao+outros+beneficios, 0.25, na.rm=TRUE),
-                    "Renda Q3 (<75%) DF"=survey_quantile(renda_prim+renda_sec+aposentadoria+pensao+outros+beneficios, 0.75, na.rm=TRUE),
-                    "Renda Q99 (<99%) DF"=survey_quantile(renda_prim+renda_sec+aposentadoria+pensao+outros+beneficios, 0.99, na.rm=TRUE))
-        
+          srvyr::filter(E02==1) %>% 
+          srvyr::summarise("Renda domiciliar per capita DF"=survey_mean(renda_dom_pc,na.rm=T),
+                           "Variância DF"=survey_var(renda_dom_pc,na.rm=T),
+                           "Mediana DF"=survey_median(renda_dom_pc,na.rm=T),
+                           "Desvio Padrão DF"=survey_sd(renda_dom_pc,na.rm=T),
+                           "Renda Q1 (<25%) DF"=survey_quantile(renda_dom_pc, 0.25, na.rm=TRUE),
+                           "Renda Q3 (<75%) DF"=survey_quantile(renda_dom_pc, 0.75, na.rm=TRUE),
+                           "Renda Q99 (<99%) DF"=survey_quantile(renda_dom_pc, 0.99, na.rm=TRUE))
+                           
 
         # Calculos para o Plano Piloto
-        amostra %>% filter(A01ra==1) %>% 
-          srvyr::mutate(renda_prim=case_when(G16 == 77777~NA_real_,
-                                             G16 == 88888~NA_real_,
-                                             G16 == 99999~0,
-                                             TRUE~as.numeric(G16))) %>%
-          srvyr::mutate(renda_sec=case_when(G19 == 66666~0,
-                                            G19 == 77777~NA_real_,
-                                            G19 == 88888~NA_real_,
-                                            G19 == 99999~0,
-                                            TRUE ~as.numeric(G19))) %>%
-          srvyr::mutate(aposentadoria=case_when(G201 == 66666~0,
-                                                G201 == 77777~NA_real_,
-                                                G201 == 88888~NA_real_,
-                                                G201 == 99999~0,
-                                                TRUE ~as.numeric(G201))) %>%
-          srvyr::mutate(pensao=case_when(G202 == 66666~0,
-                                         G202 == 77777~NA_real_,
-                                         G202 == 88888~NA_real_,
-                                         G202 == 99999~0,
-                                         TRUE ~as.numeric(G202))) %>%
-          srvyr:: mutate(outros=case_when(G203 == 66666~0,
-                                          G203 == 77777~NA_real_,
-                                          G203 == 88888~NA_real_,
-                                          G203 == 99999~0,
-                                          TRUE ~as.numeric(G203))) %>%
-          srvyr:: mutate(beneficios=case_when(G204 == 66666~0,
-                                              G204 == 77777~NA_real_,
-                                              G204 == 88888~NA_real_,
-                                              G204 == 99999~0,
-                                              TRUE ~as.numeric(G204))) %>%
-          summarise("Renda Total Plano"=survey_total(renda_prim+renda_sec+aposentadoria+pensao+outros+beneficios, na.rm=TRUE),
-                    "Renda Média Plano"=survey_mean(renda_prim+renda_sec+aposentadoria+pensao+outros+beneficios, na.rm=TRUE),
-                    "Renda Desvio Plano"=survey_sd(renda_prim+renda_sec+aposentadoria+pensao+outros+beneficios, na.rm=TRUE),
-                    "Renda Q1 (<25%) Plano"=survey_quantile(renda_prim+renda_sec+aposentadoria+pensao+outros+beneficios, 0.25, na.rm=TRUE),
-                    "Renda Q3 (<75%) Plano"=survey_quantile(renda_prim+renda_sec+aposentadoria+pensao+outros+beneficios, 0.75, na.rm=TRUE),
-                    "Renda Q99 (<99%) Plano"=survey_quantile(renda_prim+renda_sec+aposentadoria+pensao+outros+beneficios, 0.99, na.rm=TRUE))
+        amostra %>% 
+          srvyr::filter(E02==1&A01ra==1) %>% 
+          srvyr::summarise("Renda domiciliar per capita Plano"=survey_mean(renda_dom_pc,na.rm=T),
+                           "Variância Plano"=survey_var(renda_dom_pc,na.rm=T),
+                           "Mediana Plano"=survey_median(renda_dom_pc,na.rm=T),
+                           "Desvio Padrão Plano"=survey_sd(renda_dom_pc,na.rm=T),
+                           "Renda Q1 (<25%) Plano"=survey_quantile(renda_dom_pc, 0.25, na.rm=TRUE),
+                           "Renda Q3 (<75%) Plano"=survey_quantile(renda_dom_pc, 0.75, na.rm=TRUE),
+                           "Renda Q99 (<99%) Plano"=survey_quantile(renda_dom_pc, 0.99, na.rm=TRUE))
         
+  
         # Calculos para Samambaia
-        amostra %>% filter(A01ra==12) %>% 
-          srvyr::mutate(renda_prim=case_when(G16 == 77777~NA_real_,
-                                             G16 == 88888~NA_real_,
-                                             G16 == 99999~0,
-                                             TRUE~as.numeric(G16))) %>%
-          srvyr::mutate(renda_sec=case_when(G19 == 66666~0,
-                                            G19 == 77777~NA_real_,
-                                            G19 == 88888~NA_real_,
-                                            G19 == 99999~0,
-                                            TRUE ~as.numeric(G19))) %>%
-          srvyr::mutate(aposentadoria=case_when(G201 == 66666~0,
-                                                G201 == 77777~NA_real_,
-                                                G201 == 88888~NA_real_,
-                                                G201 == 99999~0,
-                                                TRUE ~as.numeric(G201))) %>%
-          srvyr::mutate(pensao=case_when(G202 == 66666~0,
-                                         G202 == 77777~NA_real_,
-                                         G202 == 88888~NA_real_,
-                                         G202 == 99999~0,
-                                         TRUE ~as.numeric(G202))) %>%
-          srvyr:: mutate(outros=case_when(G203 == 66666~0,
-                                          G203 == 77777~NA_real_,
-                                          G203 == 88888~NA_real_,
-                                          G203 == 99999~0,
-                                          TRUE ~as.numeric(G203))) %>%
-          srvyr:: mutate(beneficios=case_when(G204 == 66666~0,
-                                              G204 == 77777~NA_real_,
-                                              G204 == 88888~NA_real_,
-                                              G204 == 99999~0,
-                                              TRUE ~as.numeric(G204))) %>%
-          summarise("Renda Total Samambaia"=survey_total(renda_prim+renda_sec+aposentadoria+pensao+outros+beneficios, na.rm=TRUE),
-                    "Renda Média Samambaia"=survey_mean(renda_prim+renda_sec+aposentadoria+pensao+outros+beneficios, na.rm=TRUE),
-                    "Renda Desvio Samambaia"=survey_sd(renda_prim+renda_sec+aposentadoria+pensao+outros+beneficios, na.rm=TRUE),
-                    "Renda Q1 (<25%) Samambaia"=survey_quantile(renda_prim+renda_sec+aposentadoria+pensao+outros+beneficios, 0.25, na.rm=TRUE),
-                    "Renda Q3 (<75%) Samambaia"=survey_quantile(renda_prim+renda_sec+aposentadoria+pensao+outros+beneficios, 0.75, na.rm=TRUE),
-                    "Renda Q99 (<99%) Samambaia"=survey_quantile(renda_prim+renda_sec+aposentadoria+pensao+outros+beneficios, 0.99, na.rm=TRUE))
+        amostra %>% 
+          srvyr::filter(E02==1&A01ra==12) %>% 
+          srvyr::summarise("Renda domiciliar per capita Samambaia"=survey_mean(renda_dom_pc,na.rm=T),
+                           "Variância Samambaia"=survey_var(renda_dom_pc,na.rm=T),
+                           "Mediana Samambaia"=survey_median(renda_dom_pc,na.rm=T),
+                           "Desvio Padrão Samambaia"=survey_sd(renda_dom_pc,na.rm=T),
+                           "Renda Q1 (<25%) Samambaia"=survey_quantile(renda_dom_pc, 0.25, na.rm=TRUE),
+                           "Renda Q3 (<75%) Samambaia"=survey_quantile(renda_dom_pc, 0.75, na.rm=TRUE),
+                           "Renda Q99 (<99%) Samambaia"=survey_quantile(renda_dom_pc, 0.99, na.rm=TRUE))
         
+
                     
         # Agora os  cálculos apenas para a Renda Primária NÃO PER CAPITA
         # Calculos para o DF
         amostra %>% 
           mutate(renda_prim=case_when(G16 == 77777 ~ NA_real_,
                                       G16 == 88888 ~ NA_real_,
-                                      G16 == 99999 ~ 0,
+                                      G16 == 99999 ~ NA_real_,
                                       TRUE ~as.numeric(G16))) %>%
-          summarise("Renda Total DF"=survey_total(renda_prim, na.rm=TRUE),
-                    "Renda Média DF"=survey_mean(renda_prim, na.rm=TRUE),
-                    "Renda Desvio DF"=survey_sd(renda_prim, na.rm=TRUE),
-                    "Renda Q1 (<25%) DF"=survey_quantile(renda_prim, 0.25, na.rm=TRUE),
-                    "Renda Q3 (<75%) DF"=survey_quantile(renda_prim, 0.75, na.rm=TRUE),
-                    "Renda Q99 (<99%) DF"=survey_quantile(renda_prim, 0.99, na.rm=TRUE)) #DF
+          srvyr::summarise("Renda Média Trabalho Principal DF"=survey_mean(renda_prim,na.rm=T),
+                           "Variância DF"=survey_var(renda_prim,na.rm=T),
+                           "Mediana DF"=survey_median(renda_prim,na.rm=T),
+                           "Desvio Padrão DF"=survey_sd(renda_prim,na.rm=T),
+                           "Renda Q1 (<25%) DF"=survey_quantile(renda_prim, 0.25, na.rm=TRUE),
+                           "Renda Q3 (<75%) DF"=survey_quantile(renda_prim, 0.75, na.rm=TRUE),
+                           "Renda Q99 (<99%) DF"=survey_quantile(renda_prim, 0.99, na.rm=TRUE))
+       
         
         # Calculos para o Plano Piloto
         amostra %>% filter(A01ra==1) %>% 
           mutate(renda_prim=case_when(G16 == 77777 ~ NA_real_,
                                       G16 == 88888 ~ NA_real_,
-                                      G16 == 99999 ~ 0,
+                                      G16 == 99999 ~ NA_real_,
                                       TRUE ~as.numeric(G16))) %>%
-          summarise("Renda Total Plano"=survey_total(renda_prim, na.rm=TRUE),
-                    "Renda Média Plano"=survey_mean(renda_prim, na.rm=TRUE),
-                    "Renda Desvio Plano"=survey_sd(renda_prim, na.rm=TRUE),
-                    "Renda Q1 (<25%) Plano"=survey_quantile(renda_prim, 0.25, na.rm=TRUE),
-                    "Renda Q3 (<75%) Plano"=survey_quantile(renda_prim, 0.75, na.rm=TRUE),
-                    "Renda Q99 (<99%) Plano"=survey_quantile(renda_prim, 0.99, na.rm=TRUE)) #PP
+          srvyr::summarise("Renda Média Trabalho Principal Plano"=survey_mean(renda_prim,na.rm=T),
+                           "Variância Plano"=survey_var(renda_prim,na.rm=T),
+                           "Mediana Plano"=survey_median(renda_prim,na.rm=T),
+                           "Desvio Padrão Plano"=survey_sd(renda_prim,na.rm=T),
+                           "Renda Q1 (<25%) Plano"=survey_quantile(renda_prim, 0.25, na.rm=TRUE),
+                           "Renda Q3 (<75%) Plano"=survey_quantile(renda_prim, 0.75, na.rm=TRUE),
+                           "Renda Q99 (<99%) Plano"=survey_quantile(renda_prim, 0.99, na.rm=TRUE))
         
-        amostra %>% filter(A01ra==12) %>% # Calculos para Samambaia
+        # Calculos para Samambaia
+        amostra %>% filter(A01ra==12) %>% 
           mutate(renda_prim=case_when(G16 == 77777 ~ NA_real_,
                                       G16 == 88888 ~ NA_real_,
-                                      G16 == 99999 ~ 0,
+                                      G16 == 99999 ~ NA_real_,
                                       TRUE ~as.numeric(G16))) %>%
-          summarise("Renda Total Samambaia"=survey_total(renda_prim, na.rm=TRUE),
-                    "Renda Média Samambaia"=survey_mean(renda_prim, na.rm=TRUE),
-                    "Renda Desvio Samambaia"=survey_sd(renda_prim, na.rm=TRUE),
-                    "Renda Q1 (<25%) Samambaia"=survey_quantile(renda_prim, 0.25, na.rm=TRUE),
-                    "Renda Q3 (<75%) Samambaia"=survey_quantile(renda_prim, 0.75, na.rm=TRUE),
-                    "Renda Q99 (<99%) Samambaia"=survey_quantile(renda_prim, 0.99, na.rm=TRUE))
+          srvyr::summarise("Renda Média Trabalho Principal Samambaia"=survey_mean(renda_prim,na.rm=T),
+                           "Variância Samambaia"=survey_var(renda_prim,na.rm=T),
+                           "Mediana Samambaia"=survey_median(renda_prim,na.rm=T),
+                           "Desvio Padrão Samambaia"=survey_sd(renda_prim,na.rm=T),
+                           "Renda Q1 (<25%) Samambaia"=survey_quantile(renda_prim, 0.25, na.rm=TRUE),
+                           "Renda Q3 (<75%) Samambaia"=survey_quantile(renda_prim, 0.75, na.rm=TRUE),
+                           "Renda Q99 (<99%) Samambaia"=survey_quantile(renda_prim, 0.99, na.rm=TRUE))
+    
+###### iii)	Escolaridade das pessoas de 25 anos ou mais. 
+        # (note que é variável qualitativa ordenada)          
         
-        # Escolaridade das pessoa de  25 anos ou mais
-        amostra %>% # Calculos para o DF
+        # Calculos para o DF      
+        amostra %>% 
+          srvyr::filter(is.na(escolaridade)==F) %>% 
           srvyr::filter(idade_calculada >= 25) %>%
-          mutate(escolaridade=case_when(F11 == 1 ~ "alfabetização",
-                                        F11 == 2 ~ "fundamental",
-                                        F11 == 3 ~ "fundamental",
-                                        F11 == 4 ~ "medio",
-                                        F11 == 5 ~ "fundamental",
-                                        F11 == 6 ~ "medio",
-                                        F11 == 7 ~ "superior",
-                                        F11 == 8 ~ "especialização",
-                                        F11 == 9 ~ "mestrado",
-                                        F11 == 10 ~ "dotorado",
-                                        TRUE ~ NA_character_)) %>%
-          group_by(escolaridade) %>%
-          summarise("Escolaridade DF"=survey_total(na.rm=TRUE))
+          srvyr::group_by(escolaridade) %>% 
+          srvyr::summarise(n=survey_total())
         
-        amostra %>% # Calculos para o Plano Piloto
-          filter(A01ra == 1) %>% 
-          filter(idade_calculada >= 25) %>%
-          mutate(escolaridade=case_when(F11 == 1 ~ "alfabetização",
-                                        F11 == 2 ~ "fundamental",
-                                        F11 == 3 ~ "fundamental",
-                                        F11 == 4 ~ "medio",
-                                        F11 == 5 ~ "fundamental",
-                                        F11 == 6 ~ "medio",
-                                        F11 == 7 ~ "superior",
-                                        F11 == 8 ~ "especialização",
-                                        F11 == 9 ~ "mestrado",
-                                        F11 == 10 ~ "dotorado",
-                                        TRUE ~ NA_character_)) %>%
-          group_by(escolaridade) %>%
-          summarise("Escolaridade Plano"=survey_total(na.rm=TRUE))
+        # Calculos para o Plano     
+        amostra %>% 
+          srvyr::filter(is.na(escolaridade)==F) %>% 
+          srvyr::filter(idade_calculada >= 25 & A01ra == 1) %>%
+          srvyr::group_by(escolaridade) %>% 
+          srvyr::summarise(n=survey_total())
         
-        amostra %>% # Calculos para Samambaia
-          filter(A01ra == 12) %>% 
-          filter(idade_calculada >= 25) %>%
-          mutate(escolaridade=case_when(F11 == 1 ~ "alfabetização",
-                                        F11 == 2 ~ "fundamental",
-                                        F11 == 3 ~ "fundamental",
-                                        F11 == 4 ~ "medio",
-                                        F11 == 5 ~ "fundamental",
-                                        F11 == 6 ~ "medio",
-                                        F11 == 7 ~ "superior",
-                                        F11 == 8 ~ "especialização",
-                                        F11 == 9 ~ "mestrado",
-                                        F11 == 10 ~ "dotorado",
-                                        TRUE ~ NA_character_)) %>%
-          group_by(escolaridade) %>%
-          summarise("Escolaridade Samambaia"=survey_total(na.rm=TRUE))
+        # Calculos para a Samambaia     
+        amostra %>% 
+          srvyr::filter(is.na(escolaridade)==F) %>% 
+          srvyr::filter(idade_calculada >= 25 & A01ra == 12) %>%
+          srvyr::group_by(escolaridade) %>% 
+          srvyr::summarise(n=survey_total())
+
         
 ###### iv)	Modo de transporte para o trabalho (apenas uma variável qualitativa
         
@@ -853,7 +815,27 @@ library(lubridate)
         
 ##### 1.3. Faça um histograma (com barras e alisado) para as variáveis renda domiciliar 
     # per capita e número de automóveis no domicílio para a RA X´ com o Plano Piloto e o Distrito Federal
-   
+  
+        # Histograma renda domiciliar per capita 
+        #Cálculo para o Distrito Federal
+        survey::svyhist(~renda_dom_pc, probability = FALSE, xlim=c(0, 30000), 
+                        main = "Histograma renda domiciliar per capita - DF", 
+                        breaks=c(0,1000,2000,3000,4000,5000,6000,10000,20000,500000), 
+                        subset(amostra,E02==1))
+        
+        #Cálculo para o Plano
+        survey::svyhist(~renda_dom_pc, probability = FALSE, xlim=c(0, 30000), 
+                        main = "Histograma renda domiciliar per capita - Plano", 
+                        breaks=c(0,1000,2000,3000,4000,5000,6000,10000,20000,500000), 
+                        subset(amostra,E02==1 & A01ra==1))
 
+        
+        #Cálculo para o Samambaia
+        survey::svyhist(~renda_dom_pc, probability = FALSE, xlim=c(0, 10000), 
+                        main = "Histograma renda domiciliar per capita - Samambaia", 
+                        breaks=c(0,1000,2000,3000,4000,5000,6000,10000,20000), 
+                        subset(amostra,E02==1 & A01ra==12))
 
-
+          
+          
+          
