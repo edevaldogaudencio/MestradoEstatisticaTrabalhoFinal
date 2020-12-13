@@ -6,6 +6,9 @@ library(srvyr)
 library(Hmisc)
 library(lubridate) 
 library(tidyverse)
+library(convey)
+library(ineq)
+
 
 ######## Preparando o ambiente
 
@@ -25,7 +28,7 @@ library(tidyverse)
       dic_moradores <- readxl::read_excel("dados/Dicionario_de_Variaveis_PDAD_2018.xlsx",
                                           skip = 1,
                                           sheet = 2)
-      
+    
       
       ### Adicionar rótulos à base da pdad
       # Criar um objeto com os rótulos
@@ -110,6 +113,13 @@ library(tidyverse)
                                                            "Médio completo",
                                                            "Superior incompleto",
                                                            "Superior completo"))))
+      # Criando variável idoso
+      pdad_2018_moradores <- pdad_2018_moradores %>%
+        dplyr::mutate(MelhorIdade=case_when(idade_calculada>=60~"1",
+                                          idade_calculada<60~"0",
+                                                        TRUE~NA_character_),)
+      
+    
       
       ###### Unificar arquivos de dados a partir do identificador único da fixa
       # Fazer o join das bases
@@ -122,7 +132,190 @@ library(tidyverse)
             dplyr::select(-c(A01ra)),
           by=c("A01nFicha"="A01nFicha")) %>% 
         # Mudar a variável pos-estrato para o tipo character
-        dplyr::mutate(POS_ESTRATO=as.character(POS_ESTRATO))
+        dplyr::mutate(POS_ESTRATO=as.character(POS_ESTRATO)) %>% 
+        dplyr::mutate(
+          RA_nome=factor(case_when(
+            A01ra==1~"Plano Piloto",
+            A01ra==2~"Gama",
+            A01ra==3~"Taguatinga",
+            A01ra==4~"Brazlândia",
+            A01ra==5~"Sobradinho",
+            A01ra==6~"Planaltina",
+            A01ra==7~"Paranoá",
+            A01ra==8~"Núcleo Bandeirante",
+            A01ra==9~"Ceilândia",
+            A01ra==10~"Guará",
+            A01ra==11~"Cruzeiro",
+            A01ra==12~"Samambaia",
+            A01ra==13~"Santa Maria",
+            A01ra==14~"São Sebastião",
+            A01ra==15~"Recanto das Emas",
+            A01ra==16~"Lago Sul",
+            A01ra==17~"Riacho Fundo",
+            A01ra==18~"Lago Norte",
+            A01ra==19~"Candangolândia",
+            A01ra==20~"Águas Claras",
+            A01ra==21~"Riacho Fundo II",
+            A01ra==22~"Sudoeste/Octogonal",
+            A01ra==23~"Varjão",
+            A01ra==24~"Park Way",
+            A01ra==25~"Scia/Estrutural",
+            A01ra==26~"Sobradinho II",
+            A01ra==27~"Jardim Botânico",
+            A01ra==28~"Itapoã",
+            A01ra==29~"SIA",
+            A01ra==30~"Vicente Pires",
+            A01ra==31~"Fercal")),
+          
+          idade_faixas=cut(idade_calculada,
+                           breaks = c(-Inf,seq(4,84,by=5),Inf),
+                           labels = c("0 a 4 anos","5 a 9 anos",
+                                      "10 a 14 anos","15 a 19 anos",
+                                      "20 a 24 anos","25 a 29 anos",
+                                      "30 a 34 anos","35 a 39 anos",
+                                      "40 a 44 anos","45 a 49 anos",
+                                      "50 a 54 anos","55 a 59 anos",
+                                      "60 a 64 anos","65 a 69 anos",
+                                      "70 a 74 anos","75 a 79 anos",
+                                      "80 a 84 anos","Mais de 85 anos"),
+                           ordered_result = T),
+          # Criar variável de sexo
+          sexo=factor(case_when(E03==1~"Masculino",
+                                E03==2~"Feminino")),
+          
+          Regiao=factor(case_when(E142 %in% c(11:17)~"Norte",
+                                  E142 %in% c(21:29)~"Nordeste",
+                                  E142 %in% c(31:35)~"Sudeste",
+                                  E142 %in% c(41:43)~"Sul",
+                                  E142 %in% c(50:52)~"Centro-oeste",
+                                  E13==1~"DF")),
+        
+          renda_trab=case_when(G16 %in% c(77777,88888,99999)~NA_real_,
+                               TRUE~as.numeric(G16)),
+          
+          onibus_trab=case_when(G141==1~"Sim",
+                                G141==2~"Não",
+                                G141==88~"Não sabe"),
+          
+          
+          transp_trab=case_when(G141==1|G144==1~"Sim",
+                                G141==2&G144==2~"Não",
+                                G141==88&G144==88~"Não sabe"),
+          
+          tempo_trab=case_when(G15==1~"Até 15 minutos",
+                               G15==2~"Mais de 0:15 até 0:30",
+                               G15==3~"Mais de 0:30 até 0:45",
+                               G15==4~"Mais de 0:45 até 1:00",
+                               G15==5~"Mais de 1:00 até 1:30",
+                               G15==6~"Mais de 1:30 até 1:45",
+                               G15==7~"Mais de 1:45 até 2:00",
+                               G15==8~"Mais de 2:00",
+                               G15==88~"Não sabe"),
+          
+          tempo_trab_c=case_when(G15==1~7.5,
+                                 G15==2~22.5,
+                                 G15==3~37.5,
+                                 G15==4~52.5,
+                                 G15==5~75,
+                                 G15==6~97.5,
+                                 G15==5~112.5,
+                                 G15==5~120),
+          
+          automoveis=case_when(C011==88888~NA_real_,
+                               TRUE~as.numeric(C011)),
+          
+          tempo_afazeres=case_when(G18 %in% c(88888,99999)~NA_real_,
+                                   TRUE~as.numeric(G18)),
+          
+          idoso=case_when(idade_calculada>=60~1,
+                          TRUE~0),
+          
+          pessoa_dorm=A01nPessoas/B12,
+          
+          internet=factor(case_when(C041==1|C042==1|C043==1|C044==1~"Sim",
+                                    C041==88&C042==88&C043==88&C044==88~NA_character_,
+                                    TRUE~"Não")),
+          
+          set_educacao=factor(case_when(G06==16~"Sim",
+                                        G06 %in% c(1:15,17:21)~"Não")),
+          
+          horas_trab=case_when(G17%in%c(88888,99999)~NA_real_,
+                               TRUE~as.numeric(G17)),
+          
+          tempo_uso=horas_trab+(tempo_trab_c/60*10)+tempo_afazeres,
+          
+          freq_escola=factor(case_when(F02==1~"Pública",
+                                       F02==2~"Privada",
+                                       TRUE~"Não estuda")),
+          
+          nivel_escola=factor(case_when(F07%in%c(1,2)~"Creche/Educação Infantil",
+                                        F07==4~"Ensino Fundamental",
+                                        F07%in%c(5,6)~"Ensino Médio",
+                                        F07 %in% c(3,7,8)~"AJA e EJA",
+                                        F07 %in% c(9:12)~"Ensino Superior")),
+          
+          local_estudo=factor(case_when(
+            F04==1~"Plano Piloto",
+            F04==2~"Gama",
+            F04==3~"Taguatinga",
+            F04==4~"Brazlândia",
+            F04==5~"Sobradinho",
+            F04==6~"Planaltina",
+            F04==7~"Paranoá",
+            F04==8~"Núcleo Bandeirante",
+            F04==9~"Ceilândia",
+            F04==10~"Guará",
+            F04==11~"Cruzeiro",
+            F04==12~"Samambaia",
+            F04==13~"Santa Maria",
+            F04==14~"São Sebastião",
+            F04==15~"Recanto das Emas",
+            F04==16~"Lago Sul",
+            F04==17~"Riacho Fundo",
+            F04==18~"Lago Norte",
+            F04==19~"Candangolândia",
+            F04==20~"Águas Claras",
+            F04==21~"Riacho Fundo II",
+            F04==22~"Sudoeste/Octogonal",
+            F04==23~"Varjão",
+            F04==24~"Park Way",
+            F04==25~"Scia/Estrutural",
+            F04==26~"Sobradinho II",
+            F04==27~"Jardim Botânico",
+            F04==28~"Itapoã",
+            F04==29~"SIA",
+            F04==30~"Vicente Pires",
+            F04==31~"Fercal",
+            F04 %in% 32:45~"Fora do DF")),
+          
+          desloc_escola=factor(case_when(F05==1~"Ônibus",
+                                         F05==2~"Transporte escolar público",
+                                         F05==3~"Transporte escolar privado",
+                                         F05==4~"Automóvel",
+                                         F05==5~"Utilitário",
+                                         F05==6~"Metrô",
+                                         F05==7~"Motocicleta",
+                                         F05==8~"Bicicleta",
+                                         F05==9~"A pé",
+                                         F05==10~"Outros")),
+          
+          transp_escola=factor(case_when(F05==1|F05==2|F05==3|F05==6~"Sim",
+                                         TRUE~"Não")),
+          
+          pos_dom=case_when(E02==1~"Responsável",
+                            E02 %in% c(2,3)~"Cônjuge",
+                            TRUE~"Outro"),
+          
+          crianca_estuda=case_when(idade_calculada<12&F02%in%c(1,2)~1,
+                                   TRUE~0),
+          
+          count=1) %>% 
+        
+        dplyr::group_by(A01nFicha) %>% 
+        dplyr::mutate(idoso=sum(idoso),
+                      crianca_estuda=sum(crianca_estuda)) %>% 
+        dplyr::ungroup()
+        
       
       # Armazenar informação em um objeto
       renda_domiciliar <- pdad_2018_moradores %>%
@@ -153,7 +346,6 @@ library(tidyverse)
                          renda_dom_pc=renda_dom/pessoas)
       # Juntar as bases
       pdad <- pdad %>% dplyr::left_join(renda_domiciliar)
-    
       
       ###### Criar o desenho inicial da pesquisa
       #Defenir uma semente para reprodutibilidade
@@ -246,8 +438,6 @@ library(tidyverse)
         srvyr::mutate_if(is.character,list(~factor(.))) %>%
         # Selecionar as variáveis criadas e algumas variáveis auxiliares
         srvyr::select(RA,E02,idade_calculada,G05,sexo,idade_faixas)
-      
-      
 
             
 ########Questões 
@@ -835,7 +1025,186 @@ library(tidyverse)
                         main = "Histograma renda domiciliar per capita - Samambaia", 
                         breaks=c(0,1000,2000,3000,4000,5000,6000,10000,20000), 
                         subset(amostra,E02==1 & A01ra==12))
+        
+        
+##### Parte 3 – Tópicos Especiais        
+##### 3.1. Calcule o Gini da renda domiciliar per capita para o DF, RA X´ 
+    # e o Plano Piloto. Qual a sua conclusão?
+      
+        # Preparar a base
+        amostra_gini<- convey::convey_prep(amostra)
 
+        
+        # Cálculo Gini para o DF 
+        convey::svygini(~renda_dom_pc,
+                        subset(amostra_gini,E02==1),
+                        na.rm=T)
+        
+        # Cálculo Gini para o Plano
+        convey::svygini(~renda_dom_pc,
+                        subset(amostra_gini,E02==1 & A01ra==1),
+                        na.rm=T)
+        
+        # Cálculo Gini para a Sammabaia
+        convey::svygini(~renda_dom_pc,
+                        subset(amostra_gini,E02==1 & A01ra==12),
+                        na.rm=T)        
+        
+        
+        
+##### 3.2 – Vamos supor que o grupo seja convidado a opinar sobre a discussão 
+    # da gestão da pandemia de Covid-19:   
+    
+##### i)	Para subsidiar a discussão, primeiro calcule o número de crianças e 
+    # adolescentes (0 a 18 anos) que mora com pessoas mais de 60 anos. Calcule 
+    # o intervalo de confiança desta estimativa. Faça isso para RA X´ e para o 
+    # DF.
+        
+        # Cálculo para o DF 
+        amostra %>%
+          # Filtrar População que mora com idoso e que tenho 18 anos ou menos
+          srvyr::filter(mora_com_idoso ==1 & idade_calculada <=18 ) %>%
+          # Criar contador
+          srvyr::mutate(count=1) %>%
+          # Calcular o total
+          srvyr::summarise("População Total"=survey_total(count, vartype = "ci"))
+        
+        
+        # Cálculo para o Plano
+        amostra %>%
+          # Filtrar População que mora com idoso e que tenho 18 anos ou menos
+          srvyr::filter(A01ra == 1 & mora_com_idoso ==1 & idade_calculada <=18 ) %>%
+          # Criar contador
+          srvyr::mutate(count=1) %>%
+          # Calcular o total
+          srvyr::summarise("População Total"=survey_total(count, vartype = "ci"))
+        
+        
+        
+        # Cálculo para o Samambaia
+        amostra %>%
+          # Filtrar População que mora com idoso e que tenho 18 anos ou menos
+          srvyr::filter(A01ra == 12 & mora_com_idoso ==1 & idade_calculada <=18 ) %>%
+          # Criar contador
+          srvyr::mutate(count=1) %>%
+          # Calcular o total
+          srvyr::summarise("População Total"=survey_total(count, vartype = "ci"))
+        
+        
+        
+        # Crie um filtro para alunos de escolas particulares e públicas
+        # Cálculo para alunos de escolas particulares e públicas -  DF 
+        amostra %>%
+          # Filtrar População que mora com idoso e que tenho 18 anos ou menos e filtrar quem estuda
+          srvyr::filter(A01ra >= 1 & mora_com_idoso ==1 & idade_calculada <=18
+                        & F02 <=2 ) %>%
           
+          # Ajustar nome das variáveis
+          srvyr::mutate(F02=factor(case_when(F02 %in% 1 ~"Pública",
+                                             F02 %in% 2 ~"Privada",
+                                             TRUE ~ NA_character_))) %>%
+          # Agrupar por região
+          srvyr::group_by(F02) %>%
+          # Calcular o total e o Percentual, com seu intervalo de confiança
+          srvyr::summarise("Escolas"=survey_total(vartype = "ci"),
+                           # Calcular o percentual 
+                           pct=survey_mean(vartype = "ci"))
+      
+       
+         # Cálculo para alunos de escolas particulares e públicas - Plano 
+        amostra %>%
+          # Filtrar População que mora com idoso e que tenho 18 anos ou menos e filtrar quem estuda
+          srvyr::filter(A01ra == 1 & mora_com_idoso ==1 & idade_calculada <=18 
+                        & F02 <=2 ) %>%
           
+          # Ajustar nome das variáveis
+          srvyr::mutate(F02=factor(case_when(F02 %in% 1 ~"Pública",
+                                             F02 %in% 2 ~"Privada",
+                                             TRUE ~ NA_character_))) %>%
+          # Agrupar por região
+          srvyr::group_by(F02) %>%
+          # Calcular o total e o Percentual, com seu intervalo de confiança
+          srvyr::summarise("Escolas"=survey_total(vartype = "ci"),
+                           # Calcular o percentual 
+                           pct=survey_mean(vartype = "ci"))
+        
+        
+        # Cálculo para alunos de escolas particulares e públicas - Samambaia 
+        amostra %>%
+          # Filtrar População que mora com idoso e que tenho 18 anos ou menos e filtrar quem estuda
+          srvyr::filter(A01ra == 12 & mora_com_idoso ==1 & idade_calculada <=18 
+                        & F02 <=2 ) %>%
           
+          # Ajustar nome das variáveis
+          srvyr::mutate(F02=factor(case_when(F02 %in% 1 ~"Pública",
+                                             F02 %in% 2 ~"Privada",
+                                             TRUE ~ NA_character_))) %>%
+          # Agrupar por região
+          srvyr::group_by(F02) %>%
+          # Calcular o total e o Percentual, com seu intervalo de confiança
+          srvyr::summarise("Escolas"=survey_total(vartype = "ci"),
+                           # Calcular o percentual 
+                           pct=survey_mean(vartype = "ci"))       
+        
+        
+        
+##### ii)	Calcule o número médio de pessoas por dormitório desses 
+    # domicílios com crianças para a RA X´ e o DF. Crie um filtro para alunos
+    # de escolas particulares e públicas.    (crianças de 0 a 12 anos)        
+        
+        #Cálculo para o Distrito Federal
+        amostra %>% 
+          srvyr::filter(A01ra >= 1 & idade_calculada <=18) %>%
+          filter(E02==1) %>% 
+          summarise("Média p/ Dormitório DF"=survey_mean(A01nPessoas/B12,na.rm=TRUE))
+        
+        #Cálculo para o Plano Piloto
+        amostra %>% 
+          srvyr::filter(A01ra == 1 & idade_calculada <=18) %>%
+          filter(E02==1) %>% 
+          summarise("Média p/ Dormitório Plano"=survey_mean(A01nPessoas/B12,na.rm=TRUE))
+        
+        #Cálculo para Samambaia
+        amostra %>% 
+          srvyr::filter(A01ra == 1 & idade_calculada <=18) %>%
+          summarise("Média p/ Dormitório Samambaia"=survey_mean(A01nPessoas/B12,na.rm=TRUE))
+        
+        
+        # Crie um filtro para alunos de escolas particulares e públicas.
+        #Cálculo para o Distrito Federal
+        amostra %>% 
+          srvyr::filter(A01ra >= 1 & mora_com_idoso ==1 & idade_calculada <=18 
+                      & F02 <=2 ) %>%
+          srvyr::mutate(F02=factor(case_when(F02 %in% 1 ~"Pública",
+                                             F02 %in% 2 ~"Privada",
+                                             TRUE ~ NA_character_))) %>%
+          # Agrupar por região
+          srvyr::group_by(F02) %>%
+          # Calcular o total e o Percentual, com seu intervalo de confiança
+          srvyr::summarise("Média de Pessoas/Domitório"=survey_mean(A01nPessoas/B12, vartype = "ci"))
+          
+        
+        #Cálculo para o Plano Piloto
+        amostra %>% 
+          srvyr::filter(A01ra == 1 & mora_com_idoso ==1 & idade_calculada <=18 
+                        & F02 <=2 ) %>%
+          srvyr::mutate(F02=factor(case_when(F02 %in% 1 ~"Pública",
+                                             F02 %in% 2 ~"Privada",
+                                             TRUE ~ NA_character_))) %>%
+          # Agrupar por região
+          srvyr::group_by(F02) %>%
+          # Calcular o total e o Percentual, com seu intervalo de confiança
+          srvyr::summarise("Média de Pessoas/Domitório"=survey_mean(A01nPessoas/B12, vartype = "ci"))
+        
+        
+        #Cálculo para o Samambaia
+        amostra %>% 
+          srvyr::filter(A01ra == 12 & mora_com_idoso ==1 & idade_calculada <=18 
+                        & F02 <=2 ) %>%
+          srvyr::mutate(F02=factor(case_when(F02 %in% 1 ~"Pública",
+                                             F02 %in% 2 ~"Privada",
+                                             TRUE ~ NA_character_))) %>%
+          # Agrupar por região
+          srvyr::group_by(F02) %>%
+          # Calcular o total e o Percentual, com seu intervalo de confiança
+          srvyr::summarise("Média de Pessoas/Domitório"=survey_mean(A01nPessoas/B12, vartype = "ci"))
