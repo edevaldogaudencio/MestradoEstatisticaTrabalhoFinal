@@ -1,3 +1,12 @@
+# Metrado Profissional em Econômia
+# Alunos: Jeferson, Alfredo e Edevaldo
+# Disciplina: Estatística
+# Professor: Bruno De Oliveira Cruz
+# Monitor: hiago Mendes Rosa
+#### Partes dos códigos utilizados neste programa foram desenvolvidos a partir 
+#### dos exemplos disponibilizados pelo monitor Thiago Mendes Rosa
+
+
 ######Carregar pacotes necessários
 library(readr)
 library(survey)
@@ -8,7 +17,7 @@ library(lubridate)
 library(tidyverse)
 library(convey)
 library(ineq)
-
+options(dplyr.width = Inf)
 
 ######## Preparando o ambiente
 
@@ -218,8 +227,8 @@ library(ineq)
                                  G15==4~52.5,
                                  G15==5~75,
                                  G15==6~97.5,
-                                 G15==5~112.5,
-                                 G15==5~120),
+                                 G15==7~112.5,
+                                 G15==8~120),
           
           automoveis=case_when(C011==88888~NA_real_,
                                TRUE~as.numeric(C011)),
@@ -668,17 +677,10 @@ library(ineq)
     
         
 
-##### 1.2 Calcular a Renda Domiciliar do  Distrito Federal, Plano Piloto e Samambaia
-        # Foi considerado como Renda Domiciliar os seguintes parâmetros:
-        #   * G16 - Renda Primária;
-        #   * G19 - Renda Sedundária;
-        #   * G201 - Aposentadoria;
-        #   * G202 - Pensão;
-        #   * G203 - Outras Rendas;
-        #   * G204 - Benefícios Sociais;
-        options(dplyr.width = Inf)
-
-                
+##### 1.2 Calcule (quando possível) a média, mediana, variância, desvio padrão, 
+    # para as seguintes variáveis com os seguintes filtros Distrito Federal 
+    # como um todo, Plano Piloto e RA X:
+        
 ###### i)	Renda domiciliar per capita (calcule também Quantis Q1, Q3 e o 
         # percentil 99, ou seja, o valor do 1% mais rico daquela RA)   
         
@@ -719,7 +721,10 @@ library(ineq)
         
 
                     
-        # Agora os  cálculos apenas para a Renda Primária NÃO PER CAPITA
+######  ii)	Renda do trabalho principal (calcule também Quantis Q1, Q3 e o 
+    # percentil 99, ou seja, o valor do 1% mais rico daquela RA).Agora os  
+    # cálculos apenas para a Renda Primária NÃO PER CAPITA
+        
         # Calculos para o DF
         amostra %>% 
           mutate(renda_prim=case_when(G16 == 77777 ~ NA_real_,
@@ -771,27 +776,31 @@ library(ineq)
           srvyr::filter(is.na(escolaridade)==F) %>% 
           srvyr::filter(idade_calculada >= 25) %>%
           srvyr::group_by(escolaridade) %>% 
-          srvyr::summarise(n=survey_total())
+          srvyr::summarise(n=survey_total(),
+                           pct=survey_mean(vartype = "ci"))
         
         # Calculos para o Plano     
         amostra %>% 
           srvyr::filter(is.na(escolaridade)==F) %>% 
           srvyr::filter(idade_calculada >= 25 & A01ra == 1) %>%
           srvyr::group_by(escolaridade) %>% 
-          srvyr::summarise(n=survey_total())
+          srvyr::summarise(n=survey_total(),
+                           pct=survey_mean(vartype = "ci"))
         
         # Calculos para a Samambaia     
         amostra %>% 
           srvyr::filter(is.na(escolaridade)==F) %>% 
           srvyr::filter(idade_calculada >= 25 & A01ra == 12) %>%
           srvyr::group_by(escolaridade) %>% 
-          srvyr::summarise(n=survey_total())
+          srvyr::summarise(n=survey_total(),
+                           pct=survey_mean(vartype = "ci"))
 
         
-###### iv)	Modo de transporte para o trabalho (apenas uma variável qualitativa
+###### iv)	Modo de transporte para o trabalho (apenas uma variável qualitativa)
         
-        # Como existem pessoas com mais de uma opção de transporte para o trabalhoa,
-        # optamos por agrupar as diferentes formas numa matrix de possibilidades.
+        # Como existem pessoas com mais de uma opção de transporte para o 
+        # trabalho, optamos por agrupar as diferentes formas numa matrix 
+        # de possibilidades.
         amostra %>% # Cálculos para o DF
           mutate(Onibus=factor(case_when(G141 == 1 ~ "onibus",
                                          TRUE ~ NA_character_))) %>%
@@ -799,16 +808,17 @@ library(ineq)
                                             TRUE ~ NA_character_))) %>%
           mutate(Utilitario=factor(case_when(G143 == 1 ~ "utilitario",
                                              TRUE ~ NA_character_))) %>%
-          mutate(Metro=factor(case_when(G144 == 1 ~ "metro",
+          mutate(Metro=factor(case_when(G144  == 1 ~ "metro",
                                         TRUE ~ NA_character_))) %>%
           mutate(Moto=factor(case_when(G145 == 1 ~ "moto",
                                        TRUE ~ NA_character_))) %>%
           mutate(Bike=factor(case_when(G146 == 1 ~ "bike",
                                        TRUE ~ NA_character_))) %>%
-          mutate(Andando=factor(case_when(G144 == 1 ~ "andando",
+          mutate(Andando=factor(case_when(G147 == 1 ~ "andando",
                                           TRUE ~ NA_character_))) %>%
           group_by(Onibus, Automovel,Utilitario, Metro, Moto, Bike, Andando) %>%
           summarise("Quantidade DF"=survey_total(na.rm=TRUE)) %>% print(n=100)
+        
         
         amostra %>% # Cálculos para o Plano Piloto
           filter(A01ra == 1) %>% 
@@ -824,7 +834,7 @@ library(ineq)
                                        TRUE ~ NA_character_))) %>%
           mutate(Bike=factor(case_when(G146 == 1 ~ "bike",
                                        TRUE ~ NA_character_))) %>%
-          mutate(Andando=factor(case_when(G144 == 1 ~ "andando",
+          mutate(Andando=factor(case_when(G147 == 1 ~ "andando",
                                           TRUE ~ NA_character_))) %>%
           group_by(Onibus, Automovel,Utilitario, Metro, Moto, Bike, Andando) %>%
           summarise("Qtd. Plano"=survey_total(na.rm=TRUE)) %>% print(n=100)
@@ -843,7 +853,7 @@ library(ineq)
                                        TRUE ~ NA_character_))) %>%
           mutate(Bike=factor(case_when(G146 == 1 ~ "bike",
                                        TRUE ~ NA_character_))) %>%
-          mutate(Andando=factor(case_when(G144 == 1 ~ "andando",
+          mutate(Andando=factor(case_when(G147 == 1 ~ "andando",
                                           TRUE ~ NA_character_))) %>%
           group_by(Onibus, Automovel,Utilitario, Metro, Moto, Bike, Andando) %>%
           summarise("Qtd. Samambaia"=survey_total(na.rm=TRUE)) %>% print(n=100)
@@ -1003,25 +1013,26 @@ library(ineq)
                     "Q3 (<75%) p/ Cômodo Samambaia"=survey_quantile(B12,0.99,na.rm=TRUE))
         
         
+        
 ##### 1.3. Faça um histograma (com barras e alisado) para as variáveis renda domiciliar 
     # per capita e número de automóveis no domicílio para a RA X´ com o Plano Piloto e o Distrito Federal
   
         # Histograma renda domiciliar per capita 
         #Cálculo para o Distrito Federal
-        survey::svyhist(~renda_dom_pc, probability = FALSE, xlim=c(0, 30000), 
+        survey::svyhist(~renda_dom_pc, freq = FALSE, xlim=c(0, 30000), 
                         main = "Histograma renda domiciliar per capita - DF", 
                         breaks=c(0,1000,2000,3000,4000,5000,6000,10000,20000,500000), 
                         subset(amostra,E02==1))
         
         #Cálculo para o Plano
-        survey::svyhist(~renda_dom_pc, probability = FALSE, xlim=c(0, 30000), 
+        survey::svyhist(~renda_dom_pc, freq = FALSE, xlim=c(0, 30000), 
                         main = "Histograma renda domiciliar per capita - Plano", 
                         breaks=c(0,1000,2000,3000,4000,5000,6000,10000,20000,500000), 
                         subset(amostra,E02==1 & A01ra==1))
 
         
         #Cálculo para o Samambaia
-        survey::svyhist(~renda_dom_pc, probability = FALSE, xlim=c(0, 10000), 
+        survey::svyhist(~renda_dom_pc, freq = FALSE, xlim=c(0, 10000), 
                         main = "Histograma renda domiciliar per capita - Samambaia", 
                         breaks=c(0,1000,2000,3000,4000,5000,6000,10000,20000), 
                         subset(amostra,E02==1 & A01ra==12))
@@ -1078,7 +1089,6 @@ library(ineq)
           srvyr::mutate(count=1) %>%
           # Calcular o total
           srvyr::summarise("População Total"=survey_total(count, vartype = "ci"))
-        
         
         
         # Cálculo para o Samambaia
@@ -1210,4 +1220,253 @@ library(ineq)
           # Calcular o total e o Percentual, com seu intervalo de confiança
           srvyr::summarise("Média de Pessoas/Domitório Plano"=survey_mean(
             pessoa_dorm, vartype = "ci",na.rm=TRUE))
+        
+      
+        
+##### iii)	Calcule o número de crianças, adolescentes e jovens (0 a 29 anos) 
+    # por nível escolar. Calcule também quantos destes utilizam o transporte 
+    # coletivo para ir à escola (ônibus, metrô, transporte escolar público ou 
+    # transporte escolar privado). Calcule o intervalo de confiança desta 
+    # estimativa. Faça também um filtro para unidades públicas e particulares.
+        
+        # Calcule o número de crianças, adolescentes e jovens (0 a 29 anos) 
+        # por nível escolar
+        
+        #Cálculo para o Distrito Federal 
+        amostra %>% 
+          srvyr::filter(F02 <=2 & idade_calculada <= 29 & is.na(nivel_escola)==F) %>%
+          srvyr::group_by(nivel_escola) %>% 
+          srvyr::summarise(n=survey_total())
+        
+        
+        #Cálculo para o Plano
+        amostra %>% 
+          srvyr::filter(A01ra == 1 & F02 <=2 & idade_calculada <= 29 & is.na(nivel_escola)==F) %>%
+          srvyr::group_by(nivel_escola) %>% 
+          srvyr::summarise(n=survey_total())
+        
+        
+        #Cálculo para o Samambaia
+        amostra %>% 
+          srvyr::filter(A01ra == 12 & F02 <=2  & idade_calculada <= 29 & is.na(nivel_escola)==F) %>%
+          srvyr::group_by(nivel_escola) %>% 
+          srvyr::summarise(n=survey_total())
+        
+        
+        #Calcule também quantos destes utilizam o transporte 
+        #coletivo para ir à escola (ônibus, metrô, transporte escolar público ou 
+        #transporte escolar privado).
+      
+        #Cálculo para o DF       
+        amostra %>% 
+          srvyr::filter( F02 <=2  & idade_calculada <= 29 & is.na(nivel_escola
+                                                                  )==F) %>%
+          srvyr::filter(F05==1 | F05==2 | F05==3 | F05==6) %>%
+          srvyr::group_by(desloc_escola) %>% 
+          srvyr::summarise(n=survey_total(vartype = "ci")) 
+        
+        #Cálculo para o Plano       
+        amostra %>% 
+          srvyr::filter(A01ra == 1 & F02 <=2  & idade_calculada <= 29 & 
+                          is.na(nivel_escola)==F) %>%
+          srvyr::filter(F05==1 | F05==2 | F05==3 | F05==6) %>%
+          srvyr::group_by(desloc_escola) %>% 
+          srvyr::summarise(n=survey_total(vartype = "ci")) 
+        
+        #Cálculo para o Samambaia       
+        amostra %>% 
+          srvyr::filter(A01ra == 12 & F02 <=2  & idade_calculada <= 29 & 
+                          is.na(nivel_escola)==F) %>%
+          srvyr::filter(F05==1 | F05==2 | F05==3 | F05==6) %>%
+          srvyr::group_by(desloc_escola) %>% 
+          srvyr::summarise(n=survey_total(vartype = "ci"))
+        
+        #Faça também um filtro para unidades públicas e particulares
+        #Cálculo para o DF  
+        amostra %>% 
+          srvyr::filter( F02 <=2  & idade_calculada <= 29 & is.na(nivel_escola
+          )==F) %>%
+          srvyr::filter(F05==1 | F05==2 | F05==3 | F05==6) %>%
+          srvyr::mutate(F02=factor(case_when(F02 %in% 1 ~"Pública",
+                                             F02 %in% 2 ~"Privada",
+                                             TRUE ~ NA_character_))) %>%
+          srvyr::group_by(F02) %>% 
+          srvyr::summarise(n=survey_total(vartype = "ci")) 
+        
+        #Cálculo para o Plano
+        amostra %>% 
+          srvyr::filter(A01ra == 1 &F02 <=2  & idade_calculada <= 29 & 
+                          is.na(nivel_escola)==F) %>%
+          srvyr::filter(F05==1 | F05==2 | F05==3 | F05==6) %>%
+          srvyr::mutate(F02=factor(case_when(F02 %in% 1 ~"Pública",
+                                             F02 %in% 2 ~"Privada",
+                                             TRUE ~ NA_character_))) %>%
+          srvyr::group_by(F02) %>% 
+          srvyr::summarise(n=survey_total(vartype = "ci")) 
+        
+        #Cálculo para a Samambaia
+        amostra %>% 
+          srvyr::filter(A01ra == 12 &F02 <=2  & idade_calculada <= 29 & 
+                          is.na(nivel_escola)==F) %>%
+          srvyr::filter(F05==1 | F05==2 | F05==3 | F05==6) %>%
+          srvyr::mutate(F02=factor(case_when(F02 %in% 1 ~"Pública",
+                                             F02 %in% 2 ~"Privada",
+                                             TRUE ~ NA_character_))) %>%
+          srvyr::group_by(F02) %>% 
+          srvyr::summarise(n=survey_total(vartype = "ci")) 
+        
+        
+##### iv)	Estime o percentual de domicílios conectados à internet para o 
+    # Distrito Federal. Faça também um filtro estudantes de escolas públicas 
+    # e particulares, independentemente da idade. Faça também um teste de 
+    # hipótese a 95% de confiança para comparar se as duas proporções são
+    # equivalentes ou não.
+        
+        #Cálculo para o Distrito Federal  
+        #Domicílios conectados à internet
+        amostra %>%
+          # Filtrar População DF pelo proprietário da casa
+          srvyr::filter(E02==1 & is.na(internet)==F) %>%
+          # Criar contador
+          srvyr::mutate(count=1) %>%
+          # Agrupar por internet
+          srvyr::group_by(internet) %>% 
+          # Calcular o total
+          srvyr::summarise("População Total"=survey_total(vartype = "ci"),
+                           # Calcular o percentual
+                           pct=survey_mean(vartype = "ci"))
+        
+        # Faça também um filtro estudantes de escolas públicas 
+        # e particulares, independentemente da idade.
+        amostra %>% 
+          srvyr::filter(F02 <=2) %>%
+          srvyr::group_by(freq_escola) %>% 
+          srvyr::summarise(n=survey_total(vartype = "ci"),
+                           pct=survey_mean(vartype = "ci")) 
+        
+        # Faça também um teste de 
+        # hipótese a 95% de confiança para comparar se as duas proporções são
+        # equivalentes ou não.
+        svyttest(F02~internet,
+                 subset(amostra,F02 <=2 & E02==1),na.rm=T)
+
+        
+        
+##### v)	Pela variável G06 (Qual atividade da empresa que lhe paga o trabalho 
+    # principal?), caracterize os trabalhadores do setor educação (não 
+    # necessariamente todos estão em sala de aula, mas é uma boa proxy do 
+    # perfil dos trabalhadores do setor). Calcule o número de pessoas nessas 
+    # atividades, o tempo médio de deslocamento ao trabalho e modo de 
+    # transporte, além da distribuição etária. Calcule também quantos destes 
+    # trabalhadores moram com pessoas com mais de 60 anos.
+        
+        #Caracterize os trabalhadores do setor educação - número de pessoas 
+        #nessas atividades:
+        amostra %>%
+          # Filtrar População Total
+          srvyr::filter(set_educacao=="Sim") %>%
+          # Criar contador
+          srvyr::mutate(count=1) %>%
+          # Calcular o total
+          srvyr::summarise("Trabalhadores da Educação"=survey_total
+                           (count, vartype = "ci"))
+        
+        
+        #Tempo médio de deslocamento ao trabalho e modo de transporte
+        amostra %>% 
+          filter(set_educacao=="Sim") %>% 
+          srvyr::summarise("Tempor médio para o trabalho"=survey_mean
+                           (tempo_trab_c,na.rm=T))
+        
+        
+        # Modo de transporte
+        amostra %>% 
+          filter(set_educacao=="Sim" & is.na(transp_trab)==F) %>% 
+          srvyr::mutate(transp_trab=factor(case_when(transp_trab == "Sim" ~"Transporte Coletivo",
+                                                     transp_trab == "Não" ~"Transporte Privado",
+                                                     transp_trab == "Não sabe" ~"Não sabe",
+                                             TRUE ~ NA_character_))) %>%
+          srvyr::group_by(transp_trab) %>% 
+          srvyr::summarise(n=survey_total(vartype = "ci", na.rm=TRUE),
+                           pct=survey_mean(vartype = "ci"))
+        
+        # Distribuição etária
+        amostra %>%
+          # Filtrar População Total
+          srvyr::filter(set_educacao=="Sim") %>%
+          # Criar contador
+          #srvyr::mutate(count=1) %>%
+          srvyr::group_by(idade_faixas) %>% 
+
+          # Calcular o total
+          srvyr::summarise("Trabalhadores da Educação"=survey_total
+                           (count, vartype = "ci"),
+                           pct=survey_mean(vartype = "ci"))
+        
+        # Quantos destes trabalhadores moram com pessoas com mais de 60 anos?
+        amostra %>%
+          # Filtrar População Total
+          srvyr::filter(set_educacao=="Sim" & idoso >=1 ) %>%
+          # Criar contador
+          srvyr::mutate(count=1) %>%
+          # Calcular o total
+          srvyr::summarise("Trabalhadores Edu. que moram com idoso"=survey_total
+                           (count, vartype = "ci", na.rm=TRUE))
+        
+       
+        
+##### vi)	Estime uma variável de uso do tempo: some o total de horas 
+    # trabalhadas, o tempo declarado com deslocamento e o tempo declarado com 
+    # afazeres domésticos para o responsável pelo domicílio e pelo cônjuge. 
+    # Faça um filtro para domicílios com e sem crianças (menores de 12 anos) 
+    # que frequentam escola e por sexo
+        # some o total de horas trabalhadas, o tempo declarado com deslocamento 
+        # e o tempo declarado com afazeres domésticos para o responsável pelo 
+        # domicílio e pelo cônjuge
+        amostra %>%
+          # Filtrar População Total
+          srvyr::filter(pos_dom != "Outro") %>%
+          # Agrupar por responsável ou cônjunge
+          srvyr::group_by(pos_dom) %>% 
+          # Calcular o total
+          srvyr::summarise("Uso do Tempo"=survey_mean
+                           (horas_trab+tempo_afazeres+tempo_trab_c, 
+                             vartype = "ci", na.rm=TRUE))
+        
+        # Faça um filtro para domicílios com e sem crianças (menores de 12 
+        # anos) que frequentam escola
+        
+        #Distrito Federal 
+        amostra %>%
+          # Filtrar População DF pelo proprietário da casa
+          srvyr::filter(E02==1) %>%
+          # Criar categorias
+          srvyr::mutate(crianca_estuda=factor
+                        (case_when(crianca_estuda == 0 ~"Sem crianças",
+                                   crianca_estuda >=  1 ~"Com crianças",
+                                   TRUE ~ NA_character_))) %>%
+          # Agrupar por crianças
+          srvyr::group_by(crianca_estuda) %>% 
+          # Calcular o total
+          srvyr::summarise("Domicílios"=survey_total
+                           (vartype = "ci", na.rm=TRUE),
+                           pct=survey_mean(vartype = "ci"))
+        
+        
+        # Domicílios por sexo do responsável
+        #Distrito Federal 
+        amostra %>%
+          # Filtrar População DF pelo proprietário da casa
+          srvyr::filter(E02==1) %>%
+          # Agrupar por crianças
+          srvyr::group_by(sexo) %>% 
+          # Calcular o total
+          srvyr::summarise("Domicílios"=survey_total
+                           (vartype = "ci", na.rm=TRUE),
+                           pct=survey_mean(vartype = "ci"))
+        
+        
+        
+        
+        
         
