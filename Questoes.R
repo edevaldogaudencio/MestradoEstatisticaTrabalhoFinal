@@ -306,15 +306,15 @@ library(ineq)
                             E02 %in% c(2,3)~"Cônjuge",
                             TRUE~"Outro"),
           
-          crianca_estuda=case_when(idade_calculada<12&F02%in%c(1,2)~1,
+          crianca_estuda=case_when(idade_calculada<=12&F02%in%c(1,2)~1,
                                    TRUE~0),
           
           count=1) %>% 
         
-        dplyr::group_by(A01nFicha) %>% 
-        dplyr::mutate(idoso=sum(idoso),
-                      crianca_estuda=sum(crianca_estuda)) %>% 
-        dplyr::ungroup()
+          dplyr::group_by(A01nFicha) %>% 
+          dplyr::mutate(idoso=sum(idoso),
+                        crianca_estuda=sum(crianca_estuda)) %>% 
+          dplyr::ungroup()
         
       
       # Armazenar informação em um objeto
@@ -1063,7 +1063,7 @@ library(ineq)
         # Cálculo para o DF 
         amostra %>%
           # Filtrar População que mora com idoso e que tenho 18 anos ou menos
-          srvyr::filter(mora_com_idoso ==1 & idade_calculada <=18 ) %>%
+          srvyr::filter(idoso >=1 & idade_calculada <=18 ) %>%
           # Criar contador
           srvyr::mutate(count=1) %>%
           # Calcular o total
@@ -1073,7 +1073,7 @@ library(ineq)
         # Cálculo para o Plano
         amostra %>%
           # Filtrar População que mora com idoso e que tenho 18 anos ou menos
-          srvyr::filter(A01ra == 1 & mora_com_idoso ==1 & idade_calculada <=18 ) %>%
+          srvyr::filter(A01ra == 1 & idoso >=1 & idade_calculada <=18 ) %>%
           # Criar contador
           srvyr::mutate(count=1) %>%
           # Calcular o total
@@ -1084,7 +1084,7 @@ library(ineq)
         # Cálculo para o Samambaia
         amostra %>%
           # Filtrar População que mora com idoso e que tenho 18 anos ou menos
-          srvyr::filter(A01ra == 12 & mora_com_idoso ==1 & idade_calculada <=18 ) %>%
+          srvyr::filter(A01ra == 12 & idoso >=1 & idade_calculada <=18 ) %>%
           # Criar contador
           srvyr::mutate(count=1) %>%
           # Calcular o total
@@ -1096,14 +1096,14 @@ library(ineq)
         # Cálculo para alunos de escolas particulares e públicas -  DF 
         amostra %>%
           # Filtrar População que mora com idoso e que tenho 18 anos ou menos e filtrar quem estuda
-          srvyr::filter(A01ra >= 1 & mora_com_idoso ==1 & idade_calculada <=18
+          srvyr::filter(A01ra >= 1 & idoso >=1 & idade_calculada <=18
                         & F02 <=2 ) %>%
           
           # Ajustar nome das variáveis
           srvyr::mutate(F02=factor(case_when(F02 %in% 1 ~"Pública",
                                              F02 %in% 2 ~"Privada",
                                              TRUE ~ NA_character_))) %>%
-          # Agrupar por região
+          # Agrupar por tipo de escola
           srvyr::group_by(F02) %>%
           # Calcular o total e o Percentual, com seu intervalo de confiança
           srvyr::summarise("Escolas"=survey_total(vartype = "ci"),
@@ -1114,14 +1114,14 @@ library(ineq)
          # Cálculo para alunos de escolas particulares e públicas - Plano 
         amostra %>%
           # Filtrar População que mora com idoso e que tenho 18 anos ou menos e filtrar quem estuda
-          srvyr::filter(A01ra == 1 & mora_com_idoso ==1 & idade_calculada <=18 
+          srvyr::filter(A01ra == 1 & idoso >=1 & idade_calculada <=18 
                         & F02 <=2 ) %>%
           
           # Ajustar nome das variáveis
           srvyr::mutate(F02=factor(case_when(F02 %in% 1 ~"Pública",
                                              F02 %in% 2 ~"Privada",
                                              TRUE ~ NA_character_))) %>%
-          # Agrupar por região
+          # Agrupar por tipo de escola
           srvyr::group_by(F02) %>%
           # Calcular o total e o Percentual, com seu intervalo de confiança
           srvyr::summarise("Escolas"=survey_total(vartype = "ci"),
@@ -1132,14 +1132,14 @@ library(ineq)
         # Cálculo para alunos de escolas particulares e públicas - Samambaia 
         amostra %>%
           # Filtrar População que mora com idoso e que tenho 18 anos ou menos e filtrar quem estuda
-          srvyr::filter(A01ra == 12 & mora_com_idoso ==1 & idade_calculada <=18 
+          srvyr::filter(A01ra == 12 & idoso >=1 & idade_calculada <=18 
                         & F02 <=2 ) %>%
           
           # Ajustar nome das variáveis
           srvyr::mutate(F02=factor(case_when(F02 %in% 1 ~"Pública",
                                              F02 %in% 2 ~"Privada",
                                              TRUE ~ NA_character_))) %>%
-          # Agrupar por região
+          # Agrupar por tipo de escola
           srvyr::group_by(F02) %>%
           # Calcular o total e o Percentual, com seu intervalo de confiança
           srvyr::summarise("Escolas"=survey_total(vartype = "ci"),
@@ -1154,57 +1154,60 @@ library(ineq)
         
         #Cálculo para o Distrito Federal
         amostra %>% 
-          srvyr::filter(A01ra >= 1 & idade_calculada <=18) %>%
-          filter(E02==1) %>% 
-          summarise("Média p/ Dormitório DF"=survey_mean(A01nPessoas/B12,na.rm=TRUE))
+          srvyr::filter(crianca_estuda >=1 & E02==1) %>%
+          summarise("Média Pessoas p/ Dormitório DF"=survey_mean(
+            pessoa_dorm, vartype = "ci", na.rm=TRUE))
         
         #Cálculo para o Plano Piloto
         amostra %>% 
-          srvyr::filter(A01ra == 1 & idade_calculada <=18) %>%
-          filter(E02==1) %>% 
-          summarise("Média p/ Dormitório Plano"=survey_mean(A01nPessoas/B12,na.rm=TRUE))
+          srvyr::filter(A01ra == 1 & crianca_estuda >=1 & E02==1) %>%
+          summarise("Média Pessoas p/ Dormitório Plano"=survey_mean(
+            pessoa_dorm, vartype = "ci",na.rm=TRUE))
         
         #Cálculo para Samambaia
         amostra %>% 
-          srvyr::filter(A01ra == 1 & idade_calculada <=18) %>%
-          summarise("Média p/ Dormitório Samambaia"=survey_mean(A01nPessoas/B12,na.rm=TRUE))
+          srvyr::filter(A01ra == 12 & crianca_estuda >=1 & E02==1) %>%
+          summarise("Média Pessoas p/ Dormitório Samambaia"=survey_mean(
+            pessoa_dorm, vartype = "ci",na.rm=TRUE))
         
         
         # Crie um filtro para alunos de escolas particulares e públicas.
         #Cálculo para o Distrito Federal
         amostra %>% 
-          srvyr::filter(A01ra >= 1 & mora_com_idoso ==1 & idade_calculada <=18 
-                      & F02 <=2 ) %>%
+          srvyr::filter(crianca_estuda >=1 & E02==1 & F02 <=2 ) %>%
           srvyr::mutate(F02=factor(case_when(F02 %in% 1 ~"Pública",
                                              F02 %in% 2 ~"Privada",
                                              TRUE ~ NA_character_))) %>%
-          # Agrupar por região
+          # Agrupar por tipo de escola
           srvyr::group_by(F02) %>%
           # Calcular o total e o Percentual, com seu intervalo de confiança
-          srvyr::summarise("Média de Pessoas/Domitório"=survey_mean(A01nPessoas/B12, vartype = "ci"))
+          srvyr::summarise("Média de Pessoas/Domitório DF"=survey_mean(
+            pessoa_dorm, vartype = "ci",na.rm=TRUE))
           
         
         #Cálculo para o Plano Piloto
         amostra %>% 
-          srvyr::filter(A01ra == 1 & mora_com_idoso ==1 & idade_calculada <=18 
-                        & F02 <=2 ) %>%
+          srvyr::filter(A01ra == 1 & crianca_estuda >=1 & E02==1 & F02 <=2 ) %>%
           srvyr::mutate(F02=factor(case_when(F02 %in% 1 ~"Pública",
                                              F02 %in% 2 ~"Privada",
                                              TRUE ~ NA_character_))) %>%
-          # Agrupar por região
+          # Agrupar por tipo de escola
           srvyr::group_by(F02) %>%
           # Calcular o total e o Percentual, com seu intervalo de confiança
-          srvyr::summarise("Média de Pessoas/Domitório"=survey_mean(A01nPessoas/B12, vartype = "ci"))
+          srvyr::summarise("Média de Pessoas/Domitório Plano"=survey_mean(
+            pessoa_dorm, vartype = "ci",na.rm=TRUE))
+       
         
         
         #Cálculo para o Samambaia
         amostra %>% 
-          srvyr::filter(A01ra == 12 & mora_com_idoso ==1 & idade_calculada <=18 
-                        & F02 <=2 ) %>%
+          srvyr::filter(A01ra == 12 & crianca_estuda >=1 & E02==1 & F02 <=2 ) %>%
           srvyr::mutate(F02=factor(case_when(F02 %in% 1 ~"Pública",
                                              F02 %in% 2 ~"Privada",
                                              TRUE ~ NA_character_))) %>%
-          # Agrupar por região
+          # Agrupar por tipo de escola
           srvyr::group_by(F02) %>%
           # Calcular o total e o Percentual, com seu intervalo de confiança
-          srvyr::summarise("Média de Pessoas/Domitório"=survey_mean(A01nPessoas/B12, vartype = "ci"))
+          srvyr::summarise("Média de Pessoas/Domitório Plano"=survey_mean(
+            pessoa_dorm, vartype = "ci",na.rm=TRUE))
+        
