@@ -1439,32 +1439,31 @@ options(dplyr.width = Inf)
         #Distrito Federal 
         amostra %>%
           # Filtrar População DF pelo proprietário da casa
-          srvyr::filter(E02==1) %>%
+          srvyr::filter(pos_dom != "Outro") %>%
           # Criar categorias
           srvyr::mutate(crianca_estuda=factor
                         (case_when(crianca_estuda == 0 ~"Sem crianças",
                                    crianca_estuda >=  1 ~"Com crianças",
                                    TRUE ~ NA_character_))) %>%
           # Agrupar por crianças
-          srvyr::group_by(crianca_estuda) %>% 
+          srvyr::group_by(pos_dom, crianca_estuda) %>% 
           # Calcular o total
-          srvyr::summarise("Domicílios"=survey_total
-                           (vartype = "ci", na.rm=TRUE),
-                           pct=survey_mean(vartype = "ci"))
+          srvyr::summarise("Uso do Tempo"=survey_mean
+                           (horas_trab+tempo_afazeres+tempo_trab_c, 
+                             vartype = "ci", na.rm=TRUE))
         
         
         # Domicílios por sexo do responsável
         #Distrito Federal 
         amostra %>%
           # Filtrar População DF pelo proprietário da casa
-          srvyr::filter(E02==1) %>%
+          srvyr::filter(pos_dom != "Outro") %>%
           # Agrupar por crianças
-          srvyr::group_by(sexo) %>% 
+          srvyr::group_by(sexo,pos_dom) %>% 
           # Calcular o total
-          srvyr::summarise("Domicílios"=survey_total
-                           (vartype = "ci", na.rm=TRUE),
-                           pct=survey_mean(vartype = "ci"))
-        
+          srvyr::summarise("Uso do Tempo"=survey_mean
+                           (horas_trab+tempo_afazeres+tempo_trab_c, 
+                             vartype = "ci", na.rm=TRUE))
         
         
         
